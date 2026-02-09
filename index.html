@@ -112,19 +112,6 @@
       const placeHorizontalButton = document.getElementById("placeHorizontal");
       const placeVerticalButton = document.getElementById("placeVertical");
 
-      function setPlacementMode(mode) {
-        placementMode = mode;
-        if (placeHorizontalButton && placeVerticalButton) {
-          const isHorizontal = mode === "horizontal";
-          placeHorizontalButton.style.background = isHorizontal
-            ? "#1e90ff"
-            : "#111";
-          placeVerticalButton.style.background = isHorizontal
-            ? "#111"
-            : "#1e90ff";
-        }
-      }
-
       if (placeHorizontalButton) {
         placeHorizontalButton.addEventListener("click", () => {
           setPlacementMode("horizontal");
