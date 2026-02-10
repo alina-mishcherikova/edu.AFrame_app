@@ -1,0 +1,710 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, user-scalable=no"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="stylesheet" href="css/common.css" />
+    <link rel="stylesheet" href="css/reset.css" />
+
+    <title>Art gallery</title>
+  </head>
+  <body style="margin: 0; padding: 0; overflow: hidden">
+    <style>
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.8);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+    </style>
+    <section id="container">
+      <h1 class="containter__title">Welcome to the XR Art gallery</h1>
+      <p class="container__text">
+        To start your experience click on the start button. Good luck!
+      </p>
+    </section>
+
+    <!-- Контейнер для DOM overlay (якщо підтримується) -->
+    <div
+      id="arControls"
+      style="
+        position: fixed;
+        top: 30%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        gap: 1rem;
+        z-index: 999999;
+        flex-direction: column;
+        background: rgba(0, 0, 0, 0.95);
+        padding: 2rem;
+        border-radius: 1rem;
+        border: 3px solid rgba(255, 255, 255, 0.8);
+        pointer-events: auto;
+        box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+      "
+    >
+      <div
+        style="
+          color: #fff;
+          font-size: 14px;
+          margin-bottom: 0.5rem;
+          text-align: center;
+        "
+      >
+        Placement Mode
+      </div>
+      <button
+        id="placeHorizontal"
+        style="
+          padding: 15px 25px;
+          background: rgba(30, 144, 255, 1);
+          color: #fff;
+          border: 3px solid rgba(255, 255, 255, 0.8);
+          border-radius: 0.5rem;
+          font-size: 16px;
+          font-weight: bold;
+          cursor: pointer;
+          pointer-events: auto;
+          box-shadow: 0 0 15px rgba(30, 144, 255, 0.7);
+        "
+      >
+        🔷 Horizontal
+      </button>
+      <button
+        id="placeVertical"
+        style="
+          padding: 15px 25px;
+          background: rgba(17, 17, 17, 1);
+          color: #fff;
+          border: 3px solid rgba(255, 255, 255, 0.8);
+          border-radius: 0.5rem;
+          font-size: 16px;
+          font-weight: bold;
+          cursor: pointer;
+          pointer-events: auto;
+        "
+      >
+        🔶 Vertical
+      </button>
+      <div
+        style="
+          color: #0ff;
+          font-size: 12px;
+          margin-top: 0.5rem;
+          text-align: center;
+          font-weight: bold;
+        "
+      >
+        Press squeeze button on controller
+      </div>
+    </div>
+
+    <!-- Індикатор для показу/приховування меню -->
+    <div
+      id="menuIndicator"
+      style="
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: rgba(0, 255, 255, 0.9);
+        color: #000;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 14px;
+        display: none;
+        z-index: 999998;
+        pointer-events: none;
+        border: 2px solid #fff;
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+      "
+    >
+      🎮 Press SQUEEZE to toggle menu
+    </div>
+
+    <!-- Індикатор поточного режиму (завжди видимий в AR) -->
+    <div
+      id="modeIndicator"
+      style="
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(30, 144, 255, 0.95);
+        color: #fff;
+        padding: 15px 30px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 18px;
+        display: none;
+        z-index: 999997;
+        pointer-events: none;
+        border: 3px solid #fff;
+        box-shadow: 0 0 25px rgba(30, 144, 255, 0.9);
+        text-align: center;
+      "
+    >
+      📐 Mode: HORIZONTAL<br />
+      <span style="font-size: 12px; opacity: 0.9">Squeeze to cycle</span>
+    </div>
+    <script type="module">
+      import { WebXRButton } from "./js/util/webxr-button.js";
+      import { Scene } from "./js/render/scenes/scene.js";
+      import {
+        Renderer,
+        createWebGLContext,
+      } from "./js/render/core/renderer.js";
+      import { Node } from "./js/render/core/node.js";
+      import { Gltf2Node } from "./js/render/nodes/gltf2.js";
+      import { DropShadowNode } from "./js/render/nodes/drop-shadow.js";
+      import { vec3, quat } from "./js/render/math/gl-matrix.js";
+      import { Ray } from "./js/render/math/ray.js";
+
+      // XR globals.
+      let xrButton = null;
+      let xrRefSpace = null;
+      let xrViewerSpace = null;
+      let xrHitTestSource = null;
+      let xrSession = null;
+      let controllerGripSpace = null;
+      let controllerTargetRaySpace = null;
+      let controlsVisible = false;
+
+      // WebGL scene globals.
+      let gl = null;
+      let renderer = null;
+      let scene = new Scene();
+      scene.enableStats(false);
+
+      let arObject = new Node();
+      arObject.visible = false;
+      scene.addNode(arObject);
+
+      let pyramid = new Gltf2Node({
+        url: "media/gltf/sculpture/imposter.glb",
+      });
+      arObject.addNode(pyramid);
+
+      let reticle = new Gltf2Node({ url: "media/gltf/reticle/reticle.gltf" });
+      reticle.visible = false;
+      scene.addNode(reticle);
+      let reticleHitTestResult = null;
+
+      // Having a really simple drop shadow underneath an object helps ground
+      // it in the world without adding much complexity.
+      let shadow = new DropShadowNode();
+      vec3.set(shadow.scale, 0.15, 0.15, 0.15);
+      arObject.addNode(shadow);
+
+      const MAX_PYRAMIDS = 5;
+      let pyramids = [];
+
+      // Placement mode: 'horizontal' or 'vertical'
+      let placementMode = "horizontal";
+      const arControls = document.getElementById("arControls");
+      const placeHorizontalButton = document.getElementById("placeHorizontal");
+      const placeVerticalButton = document.getElementById("placeVertical");
+      const menuIndicator = document.getElementById("menuIndicator");
+
+      // Debug overlay
+      const debugOverlay = document.createElement("div");
+      debugOverlay.id = "debugOverlay";
+      debugOverlay.style.cssText = `
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        max-height: 200px;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.85);
+        color: #0f0;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 10px;
+        border: 2px solid #0f0;
+        border-radius: 8px;
+        z-index: 99999;
+        pointer-events: none;
+        display: none;
+      `;
+      document.body.appendChild(debugOverlay);
+
+      const debugMessages = [];
+      const MAX_DEBUG_MESSAGES = 10;
+
+      function debugLog(message, type = "info") {
+        const timestamp = new Date().toLocaleTimeString();
+        const colors = {
+          info: "#0f0",
+          warn: "#ff0",
+          error: "#f00",
+          success: "#0ff",
+        };
+
+        const logEntry = {
+          time: timestamp,
+          msg: message,
+          color: colors[type] || colors.info,
+        };
+
+        debugMessages.push(logEntry);
+        if (debugMessages.length > MAX_DEBUG_MESSAGES) {
+          debugMessages.shift();
+        }
+
+        console.log(`[${timestamp}] ${message}`);
+        updateDebugOverlay();
+      }
+
+      function updateDebugOverlay() {
+        debugOverlay.innerHTML = debugMessages
+          .map(
+            (entry) =>
+              `<div style="color: ${entry.color}; margin: 2px 0;">[${entry.time}] ${entry.msg}</div>`,
+          )
+          .join("");
+        debugOverlay.scrollTop = debugOverlay.scrollHeight;
+      }
+
+      if (placeHorizontalButton) {
+        placeHorizontalButton.addEventListener("click", () => {
+          setPlacementMode("horizontal");
+          debugLog("Switched to HORIZONTAL mode", "info");
+        });
+      }
+
+      if (placeVerticalButton) {
+        placeVerticalButton.addEventListener("click", () => {
+          setPlacementMode("vertical");
+          debugLog("Switched to VERTICAL mode", "info");
+        });
+      }
+
+      // Ensure the background is transparent for AR.
+      scene.clear = false;
+
+      function initXR() {
+        debugLog("Initializing XR...", "info");
+        if (arControls) {
+          arControls.style.display = "none";
+        }
+        xrButton = new WebXRButton({
+          onRequestSession: onRequestSession,
+          onEndSession: onEndSession,
+          textEnterXRTitle: "START AR",
+          textXRNotFoundTitle: "AR NOT FOUND",
+          textExitXRTitle: "EXIT  AR",
+        });
+        document.querySelector("#container").appendChild(xrButton.domElement);
+
+        if (navigator.xr) {
+          navigator.xr.isSessionSupported("immersive-ar").then((supported) => {
+            xrButton.enabled = supported;
+            debugLog(
+              `AR supported: ${supported}`,
+              supported ? "success" : "error",
+            );
+          });
+        }
+      }
+
+      function onRequestSession() {
+        debugLog("Requesting AR session...", "info");
+        return navigator.xr
+          .requestSession("immersive-ar", {
+            requiredFeatures: ["local", "hit-test", "anchors"],
+            optionalFeatures: ["dom-overlay"],
+            domOverlay: { root: document.body },
+          })
+          .then((session) => {
+            debugLog("AR session started!", "success");
+            const overlaySupported =
+              session.domOverlayState && session.domOverlayState.type;
+            debugLog(
+              `DOM overlay: ${overlaySupported ? session.domOverlayState.type : "NOT SUPPORTED ❌"}`,
+              overlaySupported ? "success" : "warn",
+            );
+
+            if (!overlaySupported) {
+              debugLog(
+                "⚠️ Using FALLBACK mode: Squeeze=menu, Trigger=cycle mode",
+                "warn",
+              );
+            }
+
+            xrButton.setSession(session);
+            onSessionStarted(session, overlaySupported);
+          })
+          .catch((error) => {
+            debugLog(`Session error: ${error.message}`, "error");
+          });
+      }
+
+      function onSessionStarted(session, domOverlaySupported) {
+        debugLog("Session started, initializing...", "info");
+        xrSession = session;
+        session.addEventListener("end", onSessionEnded);
+        session.addEventListener(
+          "select",
+          domOverlaySupported ? onSelect : onSelectFallback,
+        );
+        session.addEventListener("squeezestart", onSqueezeStart);
+        session.addEventListener("squeezeend", (event) => {
+          debugLog("🎮 Squeeze button released", "info");
+        });
+
+        debugLog(`Input sources: ${session.inputSources.length}`, "info");
+        session.addEventListener("inputsourceschange", (event) => {
+          debugLog(
+            `Input sources changed: ${session.inputSources.length}`,
+            "info",
+          );
+          event.added.forEach((source) => {
+            debugLog(
+              `Added: ${source.handedness} ${source.targetRayMode}`,
+              "success",
+            );
+          });
+        });
+
+        if (arControls) {
+          arControls.style.display = "none"; // Спочатку ховаємо
+          debugOverlay.style.display = "block";
+          setPlacementMode("horizontal");
+          debugLog("Controls ready", "success");
+          debugLog(
+            `💡 Squeeze button: Cycle mode | Select: Place object`,
+            "info",
+          );
+        }
+
+        // Показуємо індикатор поточного режиму (завжди видимий в AR)
+        const modeIndicator = document.getElementById("modeIndicator");
+        if (modeIndicator) {
+          modeIndicator.style.display = "block";
+          const emoji = placementMode === "horizontal" ? "🔷" : "🔶";
+          modeIndicator.innerHTML = `${emoji} Mode: ${placementMode.toUpperCase()}<br><span style="font-size: 12px; opacity: 0.9;">Squeeze to cycle</span>`;
+
+          // Анімація появи
+          modeIndicator.style.opacity = "0";
+          modeIndicator.style.transform = "translateX(-50%) scale(0.8)";
+          setTimeout(() => {
+            modeIndicator.style.opacity = "1";
+            modeIndicator.style.transform = "translateX(-50%) scale(1)";
+            modeIndicator.style.transition = "all 0.3s ease";
+          }, 500);
+        }
+
+        if (!gl) {
+          gl = createWebGLContext({
+            xrCompatible: true,
+          });
+
+          renderer = new Renderer(gl);
+
+          scene.setRenderer(renderer);
+        }
+
+        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+        // In this sample we want to cast a ray straight out from the viewer's
+        // position and render a reticle where it intersects with a real world
+        // surface. To do this we first get the viewer space, then create a
+        // hitTestSource that tracks it.
+        session.requestReferenceSpace("viewer").then((refSpace) => {
+          xrViewerSpace = refSpace;
+          session
+            .requestHitTestSource({ space: xrViewerSpace })
+            .then((hitTestSource) => {
+              xrHitTestSource = hitTestSource;
+              debugLog("Hit test source ready", "success");
+            })
+            .catch((error) => {
+              debugLog(`Hit test error: ${error.message}`, "error");
+            });
+        });
+
+        session.requestReferenceSpace("local").then((refSpace) => {
+          xrRefSpace = refSpace;
+
+          session.requestAnimationFrame(onXRFrame);
+        });
+      }
+
+      function onEndSession(session) {
+        debugLog("Ending AR session...", "warn");
+
+        // Properly clean up all anchored objects
+        for (const obj of anchoredObjects) {
+          scene.removeNode(obj.anchoredObject);
+          obj.anchor.delete();
+        }
+        anchoredObjects = [];
+        debugLog("Cleaned up all anchored objects", "success");
+
+        if (xrHitTestSource) {
+          xrHitTestSource.cancel();
+          xrHitTestSource = null;
+        }
+
+        if (arControls) {
+          arControls.style.display = "none";
+          debugOverlay.style.display = "none";
+        }
+
+        const menuIndicator = document.getElementById("menuIndicator");
+        const modeIndicator = document.getElementById("modeIndicator");
+        if (menuIndicator) {
+          menuIndicator.style.display = "none";
+        }
+        if (modeIndicator) {
+          modeIndicator.style.display = "none";
+        }
+        session.end();
+      }
+
+      function onSessionEnded(event) {
+        debugLog("Session ended", "warn");
+
+        // Clean up any remaining objects
+        for (const obj of anchoredObjects) {
+          scene.removeNode(obj.anchoredObject);
+          if (obj.anchor) {
+            obj.anchor.delete();
+          }
+        }
+        anchoredObjects = [];
+
+        xrSession = null;
+        controllerGripSpace = null;
+        controllerTargetRaySpace = null;
+        controlsVisible = false;
+
+        xrButton.setSession(null);
+        if (arControls) {
+          arControls.style.display = "none";
+          debugOverlay.style.display = "none";
+        }
+
+        const menuIndicator = document.getElementById("menuIndicator");
+        const modeIndicator = document.getElementById("modeIndicator");
+        if (menuIndicator) {
+          menuIndicator.style.display = "none";
+        }
+        if (modeIndicator) {
+          modeIndicator.style.display = "none";
+        }
+      }
+
+      // Функція для toggle видимості кнопок при натисканні на контролер
+      function onSqueezeStart(event) {
+        debugLog("🎮 Squeeze button pressed!", "success");
+
+        // Циклічно переключаємо режим: horizontal <-> vertical
+        const newMode =
+          placementMode === "horizontal" ? "vertical" : "horizontal";
+        setPlacementMode(newMode);
+        debugLog(`Mode CYCLED to: ${newMode.toUpperCase()} ✅`, "success");
+
+        // Оновлюємо візуальний індикатор
+        const modeIndicator = document.getElementById("modeIndicator");
+        if (modeIndicator) {
+          const emoji = newMode === "horizontal" ? "🔷" : "🔶";
+          modeIndicator.innerHTML = `${emoji} Mode: ${newMode.toUpperCase()}<br><span style="font-size: 12px; opacity: 0.9;">Squeeze to cycle</span>`;
+
+          // Анімація зміни
+          modeIndicator.style.transform = "translateX(-50%) scale(1.2)";
+          modeIndicator.style.transition = "transform 0.2s ease";
+          setTimeout(() => {
+            modeIndicator.style.transform = "translateX(-50%) scale(1)";
+          }, 200);
+        }
+      }
+
+      // Функція для оновлення позиції UI (більше не використовується)
+      function updateControllerUI(frame) {
+        // Не потрібна - використовуємо статичний індикатор режиму
+        return;
+      }
+
+      const MAX_ANCHORED_OBJECTS = 20;
+      let anchoredObjects = [];
+      function addAnchoredObjectsToScene(anchor) {
+        debugLog(`Adding object #${anchoredObjects.length + 1}`, "success");
+        let anchorNode = new Node();
+        scene.addNode(anchorNode);
+
+        let pyramid = new Gltf2Node({
+          url: "media/gltf/sculpture/imposter.glb",
+        });
+
+        anchorNode.addNode(pyramid);
+        anchoredObjects.push({
+          anchoredObject: anchorNode,
+          anchor: anchor,
+        });
+
+        // For performance reasons if we add too many objects start
+        // removing the oldest ones to keep the scene complexity
+        // from growing too much.
+        if (anchoredObjects.length > MAX_ANCHORED_OBJECTS) {
+          let objectToRemove = anchoredObjects.shift();
+          scene.removeNode(objectToRemove.anchoredObject);
+          objectToRemove.anchor.delete();
+          debugLog("Removed oldest object (max limit)", "warn");
+        }
+      }
+
+      let rayOrigin = vec3.create();
+      let rayDirection = vec3.create();
+
+      // Функція для розміщення об'єктів (коли DOM overlay працює)
+      function onSelect(event) {
+        debugLog(
+          `Select: Placing object, reticle visible: ${reticle.visible}`,
+          "info",
+        );
+        if (reticle.visible) {
+          reticleHitTestResult.createAnchor().then(
+            (anchor) => {
+              addAnchoredObjectsToScene(anchor);
+            },
+            (error) => {
+              debugLog(`Anchor error: ${error.message}`, "error");
+              console.error("Could not create anchor: " + error);
+            },
+          );
+        } else {
+          debugLog("Cannot place: reticle not visible", "warn");
+        }
+      }
+
+      // FALLBACK: Функція для розміщення об'єктів (коли DOM overlay НЕ працює)
+      function onSelectFallback(event) {
+        debugLog(
+          `Select (Fallback): Placing object in ${placementMode} mode`,
+          "info",
+        );
+        if (reticle.visible && reticleHitTestResult) {
+          reticleHitTestResult.createAnchor().then(
+            (anchor) => {
+              addAnchoredObjectsToScene(anchor);
+              debugLog(`Object placed in ${placementMode} mode ✅`, "success");
+            },
+            (error) => {
+              debugLog(`Anchor error: ${error.message}`, "error");
+            },
+          );
+        } else {
+          debugLog("Cannot place: reticle not visible", "warn");
+        }
+      }
+
+      // Called every time a XRSession requests that a new frame be drawn.
+      function onXRFrame(t, frame) {
+        let session = frame.session;
+        let pose = frame.getViewerPose(xrRefSpace);
+
+        // Оновлюємо позицію UI відносно контролера
+        updateControllerUI(frame);
+
+        reticle.visible = false;
+
+        // If we have a hit test source, get its results for the frame
+        // and use the pose to display a reticle in the scene.
+        if (xrHitTestSource && pose) {
+          let hitTestResults = frame.getHitTestResults(xrHitTestSource);
+          let selectedResult = null;
+          let selectedPose = null;
+
+          for (const hit of hitTestResults) {
+            const hitPose = hit.getPose(xrRefSpace);
+            if (!hitPose) {
+              continue;
+            }
+            if (isPoseAllowed(hitPose)) {
+              selectedResult = hit;
+              selectedPose = hitPose;
+              break;
+            }
+          }
+
+          if (selectedResult && selectedPose) {
+            reticle.visible = true;
+            reticle.matrix = selectedPose.transform.matrix;
+            reticleHitTestResult = selectedResult;
+          } else {
+            reticleHitTestResult = null;
+          }
+        }
+
+        for (const { anchoredObject, anchor } of anchoredObjects) {
+          // only update the object's position if it's still in the list
+          // of frame.trackedAnchors
+          if (!frame.trackedAnchors.has(anchor)) {
+            continue;
+          }
+          const anchorPose = frame.getPose(anchor.anchorSpace, xrRefSpace);
+          anchoredObject.matrix = anchorPose.transform.matrix;
+        }
+
+        scene.startFrame();
+
+        session.requestAnimationFrame(onXRFrame);
+
+        scene.drawXRFrame(frame, pose);
+
+        scene.endFrame();
+      }
+
+      function isPoseAllowed(pose) {
+        const orientation = pose.transform.orientation;
+        const normal = vec3.fromValues(0, 1, 0);
+        const q = quat.fromValues(
+          orientation.x,
+          orientation.y,
+          orientation.z,
+          orientation.w,
+        );
+        vec3.transformQuat(normal, normal, q);
+
+        const y = Math.abs(normal[1]);
+        const isHorizontal = y >= 0.75;
+        const isVertical = y <= 0.25;
+
+        return placementMode === "horizontal" ? isHorizontal : isVertical;
+      }
+      function setPlacementMode(mode) {
+        placementMode = mode;
+        debugLog(`Mode changed to: ${mode.toUpperCase()}`, "info");
+        if (placeHorizontalButton && placeVerticalButton) {
+          const isHorizontal = mode === "horizontal";
+          placeHorizontalButton.style.background = isHorizontal
+            ? "rgba(30, 144, 255, 1)"
+            : "rgba(17, 17, 17, 1)";
+          placeHorizontalButton.style.boxShadow = isHorizontal
+            ? "0 0 15px rgba(30, 144, 255, 0.7)"
+            : "none";
+          placeVerticalButton.style.background = isHorizontal
+            ? "rgba(17, 17, 17, 1)"
+            : "rgba(30, 144, 255, 1)";
+          placeVerticalButton.style.boxShadow = isHorizontal
+            ? "none"
+            : "0 0 15px rgba(30, 144, 255, 0.7)";
+        }
+      }
+      // Start the XR application.
+      initXR();
+    </script>
+  </body>
+</html>
