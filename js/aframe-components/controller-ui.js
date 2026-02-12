@@ -1,65 +1,58 @@
-// Clean up existing component to avoid conflicts on reload
-if (AFRAME.components["controller-ui"]) {
-  delete AFRAME.components["controller-ui"];
-}
-
 AFRAME.registerComponent("controller-ui", {
   init() {
-    this.menuVisible = false;
-    this.menu = document.createElement("a-entity");
-    this.menu.setAttribute("visible", "false");
-    this.menu.setAttribute("position", "0 0 -0.12");
-    this.el.appendChild(this.menu);
+    const handedness = this.el.getAttribute("oculus-touch-controls");
+    if (handedness?.hand !== "right") {
+      return;
+    }
 
-    this.menu.appendChild(
-      this.makeBtn("Reset", "-0.07 0.03 0", () => {
-        const root = document.getElementById("exhibitRoot");
-        root.setAttribute("visible", "false");
-        root.__built = false;
-        root.innerHTML = "";
-        console.log("Reset exhibit");
-        window.__UI_CLICKED__ = true;
-      }),
-    );
+    if (!window.__XR_STATE__) {
+      window.__XR_STATE__ = {
+        mode: "placement",
+      };
+    }
 
-    this.menu.appendChild(
-      this.makeBtn("Info", "0.07 0.03 0", () => {
-        console.log("Info clicked (placeholder)");
-        window.__UI_CLICKED__ = true;
-      }),
-    );
-
-    this.el.addEventListener("squeezestart", () => {
-      this.menu.setAttribute("visible", "true");
-    });
-    this.el.addEventListener("squeezeend", () => {
-      this.menu.setAttribute("visible", "false");
+    this.el.addEventListener("gripdown", () => {
+      this.cycleMode();
     });
   },
 
-  makeBtn(label, pos, onClick) {
-    const wrap = document.createElement("a-entity");
-    wrap.setAttribute("position", pos);
+  cycleMode() {
+    const currentMode = window.__XR_STATE__?.mode || "placement";
+    const newMode = currentMode === "visit" ? "placement" : "visit";
+    window.__XR_STATE__.mode = newMode;
 
-    const plane = document.createElement("a-plane");
-    plane.classList.add("ui-btn");
-    plane.setAttribute("width", "0.10");
-    plane.setAttribute("height", "0.05");
-    plane.setAttribute("material", "color: #222; opacity: 0.9");
-    wrap.appendChild(plane);
+    this.showModeMessage(newMode);
+  },
 
-    const text = document.createElement("a-text");
-    text.setAttribute("value", label);
-    text.setAttribute("align", "center");
-    text.setAttribute("width", "0.6");
-    text.setAttribute("position", "0 0 0.01");
-    wrap.appendChild(text);
+  showModeMessage(mode) {
+    const existingMsg = document.getElementById("modeMessage");
+    if (existingMsg) existingMsg.parentNode.removeChild(existingMsg);
 
-    plane.addEventListener("click", (e) => {
-      e.stopPropagation();
-      onClick();
-    });
+    const msg = document.createElement("a-entity");
+    msg.id = "modeMessage";
+    msg.setAttribute("position", "0 1.5 -1");
 
-    return wrap;
+    const bg = document.createElement("a-plane");
+    bg.setAttribute("width", "1.5");
+    bg.setAttribute("height", "0.3");
+    bg.setAttribute("material", "color: #1a1a2e; opacity: 0.9; shader: flat");
+    msg.appendChild(bg);
+
+    const txt = document.createElement("a-text");
+    const modeText = mode === "visit" ? "VISIT MODE" : "PLACEMENT MODE";
+    const color = mode === "visit" ? "#ff6b6b" : "#00ff00";
+    txt.setAttribute("value", modeText);
+    txt.setAttribute("align", "center");
+    txt.setAttribute("width", "2");
+    txt.setAttribute("color", color);
+    txt.setAttribute("position", "0 0 0.01");
+    msg.appendChild(txt);
+
+    const sceneEl = document.querySelector("a-scene");
+    sceneEl.appendChild(msg);
+
+    setTimeout(() => {
+      if (msg && msg.parentNode) msg.parentNode.removeChild(msg);
+    }, 2000);
   },
 });

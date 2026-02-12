@@ -1,4 +1,3 @@
-// Clean up existing components to avoid conflicts on reload
 if (AFRAME.components["ar-reticle"]) {
   delete AFRAME.components["ar-reticle"];
 }
@@ -9,7 +8,6 @@ AFRAME.registerComponent("ar-reticle", {
   },
 });
 
-// Delete existing component if present to avoid conflicts
 if (AFRAME.components["ar-hit-test"]) {
   delete AFRAME.components["ar-hit-test"];
 }
@@ -24,34 +22,49 @@ AFRAME.registerComponent("ar-hit-test", {
     this.reticleEl = document.getElementById("reticle");
     this.reticleObj = this.reticleEl.object3D;
     this.exhibitRoot = document.getElementById("exhibitRoot");
-
     this.placed = 0;
-
-    this.hitTestSource = null;
-    this.viewerSpace = null;
-    this.refSpace = null;
-
-    this.latestHitMatrix = null;
+    this.isPlacing = false;
 
     this.onXRFrame = this.onXRFrame.bind(this);
     this.onSelect = this.onSelect.bind(this);
-
-    this.frameCounter = 0;
-    this.lastReticleState = false;
 
     this.sceneEl.addEventListener("enter-vr", () => this.setupXR());
     this.sceneEl.addEventListener("exit-vr", () => this.cleanupXR());
   },
 
-  async setupXR() {
-    const xr = this.sceneEl.renderer?.xr;
-    const session = xr?.getSession?.();
-    if (!session) {
-      if (window.debugLog) window.debugLog("❌ XR сесія недоступна", "error");
-      return;
-    }
+  showARMessage(text, color = "#00ff00") {
+    const existingMsg = document.getElementById("arMessage");
+    if (existingMsg) existingMsg.parentNode.removeChild(existingMsg);
 
-    if (window.debugLog) window.debugLog("🔍 Налаштування hit-test...", "info");
+    const msg = document.createElement("a-entity");
+    msg.id = "arMessage";
+    msg.setAttribute("position", "0 1.5 -1");
+
+    const bg = document.createElement("a-plane");
+    bg.setAttribute("width", "1.5");
+    bg.setAttribute("height", "0.3");
+    bg.setAttribute("material", "color: #000000; opacity: 0.8; shader: flat");
+    msg.appendChild(bg);
+
+    const txt = document.createElement("a-text");
+    txt.setAttribute("value", text);
+    txt.setAttribute("align", "center");
+    txt.setAttribute("width", "2");
+    txt.setAttribute("color", color);
+    txt.setAttribute("position", "0 0 0.01");
+    msg.appendChild(txt);
+
+    this.sceneEl.appendChild(msg);
+
+    setTimeout(() => {
+      if (msg && msg.parentNode) msg.parentNode.removeChild(msg);
+    }, 3000);
+  },
+
+  async setupXR() {
+    const session = this.sceneEl.renderer?.xr?.getSession?.();
+    if (!session) return;
+
     session.addEventListener("select", this.onSelect);
 
     try {
@@ -60,71 +73,53 @@ AFRAME.registerComponent("ar-hit-test", {
       this.hitTestSource = await session.requestHitTestSource({
         space: this.viewerSpace,
       });
-
-      if (window.debugLog) window.debugLog("✅ Hit-test активовано", "success");
       session.requestAnimationFrame(this.onXRFrame);
+
+      setTimeout(() => {
+        this.showARMessage("Placement Mode Active", "#00ff00");
+      }, 1000);
     } catch (e) {
-      if (window.debugLog)
-        window.debugLog("❌ Помилка hit-test: " + e.message, "error");
+      this.showARMessage("Hit-test error: " + e.message, "#ff0000");
     }
   },
 
   cleanupXR() {
-    if (window.debugLog) window.debugLog("🧹 Очищення XR сесії", "info");
-
     const session = this.sceneEl.renderer?.xr?.getSession?.();
     if (session) session.removeEventListener("select", this.onSelect);
-
     if (this.hitTestSource) {
       try {
         this.hitTestSource.cancel();
       } catch (_) {}
     }
-    this.hitTestSource = null;
-    this.viewerSpace = null;
-    this.refSpace = null;
-    this.latestHitMatrix = null;
-
     this.reticleEl.setAttribute("visible", false);
   },
 
-  onSelect(event) {
-    // Ignore if clicking UI buttons
-    if (
-      event.target &&
-      (event.target.id === "resetBtn" || event.target.id === "infoBtn")
-    ) {
+  onSelect() {
+    if (this.isPlacing) {
+      this.showARMessage("Wait...", "#ffff00");
       return;
     }
 
-    if (window.__UI_CLICKED__) {
-      window.__UI_CLICKED__ = false;
+    const mode = window.__XR_STATE__?.mode || "placement";
+
+    if (mode === "visit") {
+      this.showARMessage("Visit Mode - Cannot Place", "#ff0000");
       return;
     }
 
     if (!this.latestHitMatrix) {
-      if (window.debugLog)
-        window.debugLog("⚠️ Немає hit matrix для розміщення", "warn");
+      this.showARMessage("No Surface Detected", "#ff0000");
       return;
     }
+
     if (this.placed >= this.data.maxPlaces) {
-      if (window.debugLog)
-        window.debugLog(
-          "🚫 Досягнуто макс. кількість (" + this.data.maxPlaces + ")",
-          "warn",
-        );
+      this.showARMessage("Max Exhibits Placed", "#ff0000");
       return;
     }
 
-    if (window.debugLog)
-      window.debugLog(
-        "🏛️ Розміщення експоната #" + (this.placed + 1),
-        "success",
-      );
+    this.isPlacing = true;
 
-    // Create a new group for this placement
     const placementGroup = document.createElement("a-entity");
-
     const groupObj = placementGroup.object3D;
     groupObj.matrix.copy(this.latestHitMatrix);
     groupObj.matrix.decompose(
@@ -133,68 +128,64 @@ AFRAME.registerComponent("ar-hit-test", {
       groupObj.scale,
     );
 
-    // Build exhibit in this group
-    this.buildExhibit(placementGroup);
+    const table = document.createElement("a-entity");
+    table.setAttribute("gltf-model", "#table");
+    table.setAttribute("scale", "0.7 0.7 0.7");
+    placementGroup.appendChild(table);
 
-    // Add to root
+    const sculptures = ["#chickenLessons", "#imposter"];
+    const randomSculpture =
+      sculptures[Math.floor(Math.random() * sculptures.length)];
+
+    const sculptureWrapper = document.createElement("a-entity");
+    sculptureWrapper.setAttribute("scale", "0.4 0.4 0.4");
+
+    const statue = document.createElement("a-entity");
+    statue.setAttribute("gltf-model", randomSculpture);
+
+    sculptureWrapper.appendChild(statue);
+    placementGroup.appendChild(sculptureWrapper);
+
+    table.addEventListener("model-loaded", () => {
+      const tableObj = table.getObject3D("mesh");
+      if (tableObj) {
+        const box = new THREE.Box3().setFromObject(tableObj);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+
+        const tableHeight = size.y;
+        sculptureWrapper.setAttribute("position", `0 ${tableHeight * 0.5} 0`);
+      } else {
+        sculptureWrapper.setAttribute("position", "0 0.5 0");
+      }
+    });
+
     this.exhibitRoot.appendChild(placementGroup);
     this.exhibitRoot.setAttribute("visible", true);
+    this.placed++;
 
-    this.placed += 1;
+    this.showARMessage(`Exhibit ${this.placed} Placed!`, "#00ff00");
 
-    // Don't hide reticle, let user place more if space available
     if (this.placed >= this.data.maxPlaces) {
       this.reticleEl.setAttribute("visible", false);
-      this.latestHitMatrix = null;
-      if (window.debugLog)
-        window.debugLog("✅ Всі експонати розміщені", "success");
     }
-  },
 
-  buildExhibit(rootEl) {
-    const slots = [
-      { x: -0.35, z: -0.25, title: "Exhibit A" },
-      { x: 0.0, z: -0.25, title: "Exhibit B" },
-      { x: 0.35, z: -0.25, title: "Exhibit C" },
-    ];
-
-    slots.forEach((s) => {
-      // pedestal
-      const pedestal = document.createElement("a-cylinder");
-      pedestal.setAttribute("radius", "0.12");
-      pedestal.setAttribute("height", "0.18");
-      pedestal.setAttribute("position", `${s.x} 0 ${s.z}`);
-      pedestal.setAttribute("material", "color: #ffffff; opacity: 0.9");
-      rootEl.appendChild(pedestal);
-
-      // model
-      const model = document.createElement("a-entity");
-      model.setAttribute("gltf-model", "#modelExhibit");
-      model.setAttribute("position", `${s.x} 0.18 ${s.z}`);
-      model.setAttribute("scale", "0.22 0.22 0.22");
-      model.setAttribute(
-        "animation",
-        "property: rotation; to: 0 360 0; loop: true; dur: 12000; easing: linear",
-      );
-      rootEl.appendChild(model);
-
-      // label
-      const label = document.createElement("a-text");
-      label.setAttribute("value", s.title);
-      label.setAttribute("align", "center");
-      label.setAttribute("width", "1.5");
-      label.setAttribute("position", `${s.x} 0.42 ${s.z}`);
-      rootEl.appendChild(label);
-    });
+    setTimeout(() => {
+      this.isPlacing = false;
+    }, 500);
   },
 
   onXRFrame(t, frame) {
-    const session = frame.session;
-    session.requestAnimationFrame(this.onXRFrame);
+    frame.session.requestAnimationFrame(this.onXRFrame);
 
     if (!this.hitTestSource || !this.refSpace) return;
 
-    // Don't show reticle if max places reached
+    const mode = window.__XR_STATE__?.mode || "placement";
+    if (mode === "visit") {
+      this.reticleEl.setAttribute("visible", false);
+      return;
+    }
+
     if (this.placed >= this.data.maxPlaces) {
       this.reticleEl.setAttribute("visible", false);
       return;
@@ -204,53 +195,32 @@ AFRAME.registerComponent("ar-hit-test", {
     if (!results.length) {
       this.reticleEl.setAttribute("visible", false);
       this.latestHitMatrix = null;
-
-      if (this.lastReticleState === true) {
-        if (window.debugLog)
-          window.debugLog("🔍 Сканування поверхонь...", "info");
-        this.lastReticleState = false;
-      }
       return;
     }
 
-    const hit = results[0];
-    const pose = hit.getPose(this.refSpace);
-    if (!pose) return;
+    const pose = results[0].getPose(this.refSpace);
+    if (!pose) {
+      this.reticleEl.setAttribute("visible", false);
+      return;
+    }
 
-    // WebXR matrix -> THREE.Matrix4
     const hitMatrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+    const normalY = hitMatrix.elements[5];
 
-    // Extract position to check if it's reasonable (not at origin or too close)
-    const position = new THREE.Vector3();
-    position.setFromMatrixPosition(hitMatrix);
+    if (normalY < 0.75) {
+      this.reticleEl.setAttribute("visible", false);
+      return;
+    }
 
-    // Ignore hits that are too close (likely hitting controller or camera)
+    const position = new THREE.Vector3().setFromMatrixPosition(hitMatrix);
     const camera = this.sceneEl.camera;
-    if (camera) {
-      const distance = position.distanceTo(camera.position);
-      if (distance < 0.3) {
-        // Too close, likely hitting controller or self
-        this.reticleEl.setAttribute("visible", false);
-        if (this.lastReticleState === true) {
-          if (window.debugLog)
-            window.debugLog("⚠️ Відстань занадто мала (< 0.3m)", "warn");
-          this.lastReticleState = false;
-        }
-        return;
-      }
+    if (camera && position.distanceTo(camera.position) < 0.3) {
+      this.reticleEl.setAttribute("visible", false);
+      return;
     }
 
     this.latestHitMatrix = hitMatrix;
-    this.reticleObj.matrix.copy(this.latestHitMatrix);
+    this.reticleObj.matrix.copy(hitMatrix);
     this.reticleEl.setAttribute("visible", true);
-
-    if (this.lastReticleState === false) {
-      const dist = camera
-        ? position.distanceTo(camera.position).toFixed(2)
-        : "?";
-      if (window.debugLog)
-        window.debugLog(`✅ Поверхня знайдена (${dist}m)`, "success");
-      this.lastReticleState = true;
-    }
   },
 });

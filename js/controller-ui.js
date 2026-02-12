@@ -23,9 +23,7 @@ AFRAME.registerComponent("controller-ui", {
     btn.setAttribute("width", "0.1");
     btn.setAttribute("height", "0.05");
     btn.setAttribute("material", "color: #222");
-    btn.addEventListener("click", () => {
-      console.log("Button:", label);
-    });
+    btn.addEventListener("click", () => {});
     return btn;
   },
 });
