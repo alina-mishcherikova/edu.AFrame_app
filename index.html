@@ -22,16 +22,8 @@
   <body>
     <div
       id="arOverlay"
-      style="
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 10000;
-      "
     >
-      <div
+      <!-- <div
         id="debugPanel"
         style="
           position: absolute;
@@ -53,35 +45,14 @@
         "
       >
         <div id="debugLog"></div>
-      </div>
-
-      <div
-        id="arHint"
-        style="
-          position: absolute;
-          top: 30px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 999;
-          display: none;
-          padding: 12px 24px;
-          background: rgba(0, 0, 0, 0.7);
-          color: white;
-          border-radius: 20px;
-          font-size: 16px;
-          text-align: center;
-          pointer-events: none;
-        "
-      >
-        👆 Tap to place exhibits
-      </div>
+      </div> -->
 
     <div id="startScreen">
       <div id="startCard">
         <h1>🎨 XR Mini Exhibit</h1>
         <p>
-          Explore artifacts in augmented reality. Press START to begin your
-          journey.
+          Explore artifacts in augmented reality. During the experience, you can move around the exhibit and interact with the objects. You have 2 differents modes: visit and edit. In visit mode, you can explore the exhibit and interact with the objects. In edit mode, you can move, rotate and scale the objects to customize your exhibit. To switch between modes, simply press the grip button on your controller. Press START to begin your journey.
+          
         </p>
         <button id="startBtn">START AR</button>
         <div id="startError" class="hidden"></div>
@@ -92,27 +63,10 @@
       vr-mode-ui="enabled: false"
       renderer="colorManagement: true; alpha: true; antialias: true"
       webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: anchors, dom-overlay; overlayElement: #arOverlay"
-      ar-hit-test="maxPlaces: 10"
+      ar-hit-test="maxPlaces: 4"
     >
-      <!-- Info Text Panel -->
-      <a-entity position="0 1.8 -1" geometry="primitive: plane; width: 3; height: 0.6" material="color: #1a1a2e; opacity: 0.85; shader: flat">
-        <a-entity 
-          position="0 0.15 0.01"
-          text="value: XR MINI EXHIBIT; align: center; anchor: center; width: 2; color: #1e90ff; fontSize: 40">
-        </a-entity>
-        
-        <a-entity 
-          position="0 -0.05 0.01"
-          text="value: Augmented Reality Experience; align: center; anchor: center; width: 2.5; color: #ffffff; fontSize: 20">
-        </a-entity>
-        
-        <a-entity 
-          position="0 -0.2 0.01"
-          text="value: Rotate to explore • Press Grip to switch modes; align: center; anchor: center; width: 2.8; color: #90ee90; fontSize: 16">
-        </a-entity>
-      </a-entity>
   
-      <a-assets timeout="20000">
+      <a-assets>
         <a-asset-item
           id="modelExhibit"
           src="./media/gltf/sculpture/imposter.glb"
@@ -130,16 +84,16 @@
           src="./media/gltf/sculpture/imposter.glb"
         ></a-asset-item>
         <a-asset-item
-          id="pyramid"
-          src="./media/gltf/sculpture/Pyramid.glb"
-        ></a-asset-item>
-        <a-asset-item
           id="table"
           src="./media/gltf/elements/Table.glb"
         ></a-asset-item>
-        <a-asset-item
-          id="pictureFrame"
-          src="./media/gltf/elements/picture_frame.glb"
+           <a-asset-item
+          id="plant"
+          src="./media/gltf/sculpture/plant.glb"
+        ></a-asset-item>
+            <a-asset-item
+          id="lava-three"
+          src="./media/gltf/sculpture/lava-three.glb"
         ></a-asset-item>
         <a-asset-item
           id="modelReticle"
@@ -163,7 +117,7 @@
         id="rightHand"
         oculus-touch-controls="hand: right"
         laser-controls="hand: right"
-        raycaster="objects: .ui-btn"
+        raycaster="objects: .ui-btn, .clickable"
         cursor="rayOrigin: entity; fuse: false"
         controller-ui
       ></a-entity>
@@ -173,10 +127,11 @@
         id="leftHand"
         oculus-touch-controls="hand: left"
         laser-controls="hand: left"
-        raycaster="objects: .ui-btn"
+        raycaster="objects: .ui-btn, .clickable"
         cursor="rayOrigin: entity; fuse: false"
         controller-ui
       ></a-entity>
+      
     </a-scene>
   </body>
 </html>
