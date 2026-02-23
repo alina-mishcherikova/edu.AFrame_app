@@ -48,9 +48,7 @@ if (AFRAME.components["ar-hit-test"]) {
 }
 
 AFRAME.registerComponent("ar-hit-test", {
-  schema: {
-    maxPlaces: { type: "int", default: 1 },
-  },
+  schema: {},
 
   sculpturesData: [
     {
@@ -88,6 +86,51 @@ AFRAME.registerComponent("ar-hit-test", {
     },
   ],
 
+  // Paintings placed on walls
+  paintingsData: [
+    {
+      id: "#monaLisa",
+      name: "Mona Lisa",
+      author: "Leonardo da Vinci",
+      year: "1503",
+      description: "One of the most famous portraits in the world",
+      facts: "The painting is kept in the Louvre Museum in Paris",
+      scale: "0.05 0.05 0.05",
+      rotation: "0 180 0",
+    },
+    {
+      id: "#cowPainting",
+      name: "Cow Painting",
+      author: "Unknown Artist",
+      year: "2024",
+      description: "A contemporary take on pastoral art",
+      facts: "Inspired by the Dutch Golden Age tradition of animal painting",
+      scale: "0.6 0.6 0.6",
+      rotation: "0 270 0",
+    },
+    {
+      id: "#ImpressionistPainting1",
+      name: "Impressionist Painting 1",
+      author: "Unknown Artist",
+      year: "2024",
+      description: "An impressionist interpretation of a table setting",
+      facts:
+        "Inspired by the French Impressionist movement of the 19th century",
+      scale: "0.1 0.1 0.1",
+    },
+    {
+      id: "#ImpressionistPainting2",
+      name: "Impressionist Painting 2",
+      author: "Unknown Artist",
+      year: "2024",
+      description: "An impressionist interpretation of a table setting",
+      facts:
+        "Inspired by the French Impressionist movement of the 19th century",
+      scale: "0.6 0.6 0.6",
+      rotation: "0 180 -90",
+    },
+  ],
+
   init() {
     this.sceneEl = this.el.sceneEl;
     this.reticleEl = document.getElementById("reticle");
@@ -96,13 +139,21 @@ AFRAME.registerComponent("ar-hit-test", {
     this.placed = 0;
     this.isPlacing = false;
     this.currentSculptureIndex = 0;
+    this.currentPaintingIndex = 0;
     this.placedPositions = [];
+    this.isWall = false; // true when reticle is aimed at a vertical surface
+    this.totalItems = this.sculpturesData.length + this.paintingsData.length;
 
     this.onXRFrame = this.onXRFrame.bind(this);
     this.onSelect = this.onSelect.bind(this);
 
-    this.sceneEl.addEventListener("enter-vr", () => this.setupXR());
-    this.sceneEl.addEventListener("exit-vr", () => this.cleanupXR());
+    var self = this;
+    this.sceneEl.addEventListener("enter-vr", function () {
+      self.setupXR();
+    });
+    this.sceneEl.addEventListener("exit-vr", function () {
+      self.cleanupXR();
+    });
   },
 
   showARMessage(text, color = "#00ff00") {
@@ -129,21 +180,34 @@ AFRAME.registerComponent("ar-hit-test", {
 
     this.sceneEl.appendChild(msg);
 
-    setTimeout(() => {
-      if (msg && msg.parentNode) msg.parentNode.removeChild(msg);
+    setTimeout(function () {
+      msg.remove();
     }, 3000);
   },
 
   showInfoPanel(sculptureId) {
     const existingPanel = document.getElementById("infoPanel");
     if (existingPanel) {
-      existingPanel.parentNode.removeChild(existingPanel);
+      existingPanel.remove();
       return;
     }
 
-    const sculptureInfo = this.sculpturesData.find(function (item) {
-      return item.id === sculptureId;
-    });
+    // Search in both sculptures and paintings data
+    var sculptureInfo = null;
+    for (var i = 0; i < this.sculpturesData.length; i++) {
+      if (this.sculpturesData[i].id === sculptureId) {
+        sculptureInfo = this.sculpturesData[i];
+        break;
+      }
+    }
+    if (!sculptureInfo) {
+      for (var i = 0; i < this.paintingsData.length; i++) {
+        if (this.paintingsData[i].id === sculptureId) {
+          sculptureInfo = this.paintingsData[i];
+          break;
+        }
+      }
+    }
 
     if (!sculptureInfo) {
       return;
@@ -181,20 +245,13 @@ AFRAME.registerComponent("ar-hit-test", {
     panel.appendChild(closeText);
 
     const infoText = document.createElement("a-text");
-    const textContent =
-      sculptureInfo.name +
-      "\n" +
-      "Author: " +
-      sculptureInfo.author +
-      "\n" +
-      "Year: " +
-      sculptureInfo.year +
-      "\n" +
-      sculptureInfo.description +
-      "\n" +
-      "Fun Fact:\n" +
-      sculptureInfo.facts +
-      "\n";
+    const textContent = `${sculptureInfo.name}
+Author: ${sculptureInfo.author}
+Year: ${sculptureInfo.year}
+${sculptureInfo.description}
+Fun Fact:
+${sculptureInfo.facts}
+`;
     infoText.setAttribute("value", textContent);
     infoText.setAttribute("align", "center");
     infoText.setAttribute("width", "0.5");
@@ -205,17 +262,31 @@ AFRAME.registerComponent("ar-hit-test", {
 
     this.sceneEl.appendChild(panel);
 
-    var self = this;
     closeButton.addEventListener("click", function () {
-      if (panel && panel.parentNode) {
-        panel.parentNode.removeChild(panel);
-      }
+      panel.remove();
     });
   },
 
+  // Helper: play blip sound on info panel open
+  playInfoSound() {
+    const snd = document.getElementById("infoSound");
+    if (!snd) return;
+    snd.currentTime = 0;
+    snd.play().catch((err) => console.warn("Info sound blocked:", err));
+  },
+
   async setupXR() {
-    const session = this.sceneEl.renderer?.xr?.getSession?.();
-    if (!session) return;
+    // Wait up to 500ms for the session to become available
+    let session = null;
+    for (let i = 0; i < 10; i++) {
+      session = this.sceneEl.renderer?.xr?.getSession?.();
+      if (session) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    if (!session) {
+      this.showARMessage("XR session not found", "#ff0000");
+      return;
+    }
 
     session.addEventListener("select", this.onSelect);
 
@@ -243,6 +314,10 @@ AFRAME.registerComponent("ar-hit-test", {
     this.placedPositions = [];
     this.placed = 0;
     this.currentSculptureIndex = 0;
+    this.currentPaintingIndex = 0;
+    this.latestHitMatrix = null;
+    this.isWall = false;
+    if (window.__XR_STATE__) window.__XR_STATE__.mode = "placement";
   },
 
   onSelect() {
@@ -262,8 +337,21 @@ AFRAME.registerComponent("ar-hit-test", {
       return;
     }
 
-    if (this.placed >= this.data.maxPlaces) {
-      this.showARMessage("Max Exhibits Placed", "#ff0000");
+    if (this.placed >= this.totalItems) {
+      this.showARMessage("All Exhibits Placed", "#ff0000");
+      return;
+    }
+
+    // Check if items of the current surface type are exhausted
+    if (this.isWall && this.currentPaintingIndex >= this.paintingsData.length) {
+      this.showARMessage("All Paintings Placed — aim at the floor", "#ffff00");
+      return;
+    }
+    if (
+      !this.isWall &&
+      this.currentSculptureIndex >= this.sculpturesData.length
+    ) {
+      this.showARMessage("All Sculptures Placed — aim at a wall", "#ffff00");
       return;
     }
 
@@ -271,131 +359,195 @@ AFRAME.registerComponent("ar-hit-test", {
       this.latestHitMatrix,
     );
 
-    for (let i = 0; i < this.placedPositions.length; i++) {
-      const existingPos = this.placedPositions[i];
-      const distance = newPosition.distanceTo(existingPos);
-      if (distance < 0.6) {
-        this.showARMessage("Too Close! Min 60cm Apart", "#ff0000");
-        return;
+    var tooClose = false;
+    for (var i = 0; i < this.placedPositions.length; i++) {
+      if (newPosition.distanceTo(this.placedPositions[i]) < 0.6) {
+        tooClose = true;
+        break;
       }
+    }
+    if (tooClose) {
+      this.showARMessage("Too Close! Min 60cm Apart", "#ff0000");
+      return;
     }
 
     this.isPlacing = true;
 
     const placementGroup = document.createElement("a-entity");
     const groupObj = placementGroup.object3D;
-    groupObj.matrix.copy(this.latestHitMatrix);
-    groupObj.matrix.decompose(
-      groupObj.position,
-      groupObj.quaternion,
-      groupObj.scale,
-    );
 
-    const table = document.createElement("a-entity");
-    table.setAttribute("gltf-model", "#table");
-    table.setAttribute("scale", "0.7 0.7 0.7");
-    placementGroup.appendChild(table);
+    if (this.isWall) {
+      // For wall placement: keep the group strictly vertical.
+      // Only extract position from the hit matrix and compute a Y-only rotation
+      // from the wall normal (Y axis of the hit matrix, projected onto the XZ plane).
+      const pos = new THREE.Vector3().setFromMatrixPosition(
+        this.latestHitMatrix,
+      );
+      groupObj.position.copy(pos);
 
-    const selectedSculptureData =
-      this.sculpturesData[this.currentSculptureIndex];
-    const selectedSculpture = selectedSculptureData.id;
-    this.currentSculptureIndex = this.currentSculptureIndex + 1;
+      // Wall normal = Y column of the hit matrix (elements[4], [5], [6])
+      const wallNX = this.latestHitMatrix.elements[4];
+      const wallNZ = this.latestHitMatrix.elements[6];
 
-    const sculptureWrapper = document.createElement("a-entity");
-    sculptureWrapper.setAttribute("scale", "0.4 0.4 0.4");
+      // Rotate only around Y so the painting faces outward from the wall toward the viewer
+      groupObj.rotation.set(0, Math.atan2(wallNX, wallNZ), 0);
+      groupObj.matrixAutoUpdate = true;
+    } else {
+      groupObj.matrix.copy(this.latestHitMatrix);
+      groupObj.matrix.decompose(
+        groupObj.position,
+        groupObj.quaternion,
+        groupObj.scale,
+      );
+    }
 
-    const statue = document.createElement("a-entity");
-    statue.setAttribute("gltf-model", selectedSculpture);
+    if (this.isWall) {
+      // --- WALL: place a painting ---
+      const paintingData = this.paintingsData[this.currentPaintingIndex];
+      this.currentPaintingIndex++;
 
-    sculptureWrapper.appendChild(statue);
-    placementGroup.appendChild(sculptureWrapper);
+      const painting = document.createElement("a-entity");
+      painting.setAttribute("gltf-model", paintingData.id);
+      painting.setAttribute("scale", paintingData.scale || "0.6 0.6 0.6");
+      // Rotate so the painting faces outward from the wall
+      painting.setAttribute("rotation", paintingData.rotation || "0 180 0");
+      placementGroup.appendChild(painting);
 
-    // Create grey platform on top of table
-    const platform = document.createElement("a-plane");
-    platform.setAttribute("rotation", "-90 0 0");
-    platform.setAttribute("width", "0.5");
-    platform.setAttribute("height", "0.5");
-    platform.setAttribute(
-      "material",
-      "color: #9ca3af; shader: flat; side: double",
-    );
-    placementGroup.appendChild(platform);
+      // Info button next to the painting
+      const infoBtn = document.createElement("a-plane");
+      infoBtn.setAttribute("width", "0.2");
+      infoBtn.setAttribute("height", "0.12");
+      infoBtn.setAttribute("class", "clickable");
+      infoBtn.setAttribute("cursor-clickable", "");
+      infoBtn.setAttribute(
+        "material",
+        "color: #667eea; shader: flat; side: double",
+      );
+      infoBtn.setAttribute("position", "0.35 0.2 0.01");
+      placementGroup.appendChild(infoBtn);
 
-    // Create info button
-    const infoBubble = document.createElement("a-entity");
-    infoBubble.setAttribute("rotation", "0 180 0");
+      const infoBtnText = document.createElement("a-text");
+      infoBtnText.setAttribute("value", "Info");
+      infoBtnText.setAttribute("align", "center");
+      infoBtnText.setAttribute("width", "0.6");
+      infoBtnText.setAttribute("color", "#ffffff");
+      infoBtnText.setAttribute("position", "0.35 0.2 0.02");
+      placementGroup.appendChild(infoBtnText);
 
-    const buttonBorder = document.createElement("a-plane");
-    buttonBorder.setAttribute("width", "0.2");
-    buttonBorder.setAttribute("height", "0.12");
-    buttonBorder.setAttribute("class", "clickable");
-    buttonBorder.setAttribute("cursor-clickable", "");
-    buttonBorder.setAttribute(
-      "material",
-      "color: #667eea; shader: flat; side: double",
-    );
-    buttonBorder.setAttribute("position", "0 0 -0.001");
-    infoBubble.appendChild(buttonBorder);
+      var hitTestComp = this;
+      var capturedPaintingId = paintingData.id;
+      infoBtn.addEventListener("click", function () {
+        hitTestComp.playInfoSound();
+        hitTestComp.showInfoPanel(capturedPaintingId);
+      });
+    } else {
+      // --- FLOOR: place a table + sculpture ---
+      const table = document.createElement("a-entity");
+      table.setAttribute("gltf-model", "#table");
+      table.setAttribute("scale", "0.7 0.7 0.7");
+      placementGroup.appendChild(table);
 
-    const bubbleText = document.createElement("a-text");
-    bubbleText.setAttribute("value", "Info");
-    bubbleText.setAttribute("align", "center");
-    bubbleText.setAttribute("width", "0.6");
-    bubbleText.setAttribute("color", "#ffffff");
-    bubbleText.setAttribute("position", "0 0 0.01");
-    infoBubble.appendChild(bubbleText);
+      const selectedSculptureData =
+        this.sculpturesData[this.currentSculptureIndex];
+      const selectedSculpture = selectedSculptureData.id;
+      this.currentSculptureIndex++;
 
-    placementGroup.appendChild(infoBubble);
+      const sculptureWrapper = document.createElement("a-entity");
+      sculptureWrapper.setAttribute("scale", "0.4 0.4 0.4");
 
-    var self = this;
-    buttonBorder.addEventListener("click", function () {
-      self.showInfoPanel(selectedSculpture);
-    });
+      const statue = document.createElement("a-entity");
+      statue.setAttribute("gltf-model", selectedSculpture);
+      sculptureWrapper.appendChild(statue);
+      placementGroup.appendChild(sculptureWrapper);
 
-    table.addEventListener("model-loaded", () => {
-      const tableObj = table.getObject3D("mesh");
-      if (tableObj) {
-        const box = new THREE.Box3().setFromObject(tableObj);
-        const size = new THREE.Vector3();
-        box.getSize(size);
+      // Grey platform on top of table
+      const platform = document.createElement("a-plane");
+      platform.setAttribute("rotation", "-90 0 0");
+      platform.setAttribute("width", "0.5");
+      platform.setAttribute("height", "0.5");
+      platform.setAttribute(
+        "material",
+        "color: #9ca3af; shader: flat; side: double",
+      );
+      placementGroup.appendChild(platform);
 
-        const tableHeight = size.y;
-        const tableTop = tableHeight * 1;
+      // Info button
+      const infoBubble = document.createElement("a-entity");
+      infoBubble.setAttribute("rotation", "0 180 0");
 
-        let sculptureHeight;
-        if (
-          selectedSculpture === "#chickenLessons" ||
-          selectedSculpture === "#plant"
-        ) {
-          sculptureHeight = tableTop * 1;
-          platform.setAttribute("position", `0 ${sculptureHeight - 0.15}  0`);
+      const buttonBorder = document.createElement("a-plane");
+      buttonBorder.setAttribute("width", "0.2");
+      buttonBorder.setAttribute("height", "0.12");
+      buttonBorder.setAttribute("class", "clickable");
+      buttonBorder.setAttribute("cursor-clickable", "");
+      buttonBorder.setAttribute(
+        "material",
+        "color: #667eea; shader: flat; side: double",
+      );
+      buttonBorder.setAttribute("position", "0 0 -0.001");
+      infoBubble.appendChild(buttonBorder);
+
+      const bubbleText = document.createElement("a-text");
+      bubbleText.setAttribute("value", "Info");
+      bubbleText.setAttribute("align", "center");
+      bubbleText.setAttribute("width", "0.6");
+      bubbleText.setAttribute("color", "#ffffff");
+      bubbleText.setAttribute("position", "0 0 0.01");
+      infoBubble.appendChild(bubbleText);
+
+      placementGroup.appendChild(infoBubble);
+
+      var hitTestComp2 = this;
+      var capturedSculptureId = selectedSculpture;
+      buttonBorder.addEventListener("click", function () {
+        hitTestComp2.playInfoSound();
+        hitTestComp2.showInfoPanel(capturedSculptureId);
+      });
+
+      table.addEventListener("model-loaded", function () {
+        const tableObj = table.getObject3D("mesh");
+        if (tableObj) {
+          const box = new THREE.Box3().setFromObject(tableObj);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const tableTop = size.y;
+
+          let sculptureHeight;
+          if (
+            selectedSculpture === "#chickenLessons" ||
+            selectedSculpture === "#plant"
+          ) {
+            sculptureHeight = tableTop * 1;
+            platform.setAttribute("position", `0 ${sculptureHeight - 0.15} 0`);
+          } else {
+            sculptureHeight = tableTop * 0.7;
+            platform.setAttribute("position", `0 ${sculptureHeight + 0.02} 0`);
+          }
+          sculptureWrapper.setAttribute("position", `0 ${sculptureHeight} 0`);
+          infoBubble.setAttribute(
+            "position",
+            `0.25 ${sculptureHeight + 0.2} 0`,
+          );
         } else {
-          sculptureHeight = tableTop * 0.7;
-          platform.setAttribute("position", `0 ${sculptureHeight + 0.02} 0`);
+          sculptureWrapper.setAttribute("position", "0 1 0");
+          platform.setAttribute("position", "0 1 0");
+          infoBubble.setAttribute("position", "0.25 1.2 0");
         }
-
-        sculptureWrapper.setAttribute("position", `0 ${sculptureHeight} 0`);
-        infoBubble.setAttribute("position", `0.25 ${sculptureHeight + 0.2} 0`);
-      } else {
-        sculptureWrapper.setAttribute("position", "0 1 0");
-        platform.setAttribute("position", "0 1 0");
-        infoBubble.setAttribute("position", "0.25 1.2 0");
-      }
-    });
+      });
+    }
 
     this.exhibitRoot.appendChild(placementGroup);
     this.exhibitRoot.setAttribute("visible", true);
     this.placedPositions.push(newPosition);
     this.placed++;
 
-    if (this.placed >= this.data.maxPlaces) {
+    if (this.placed >= this.totalItems) {
       this.reticleEl.setAttribute("visible", false);
-
-      // Automatically switch to visit mode
-      if (!window.__XR_STATE__) {
-        window.__XR_STATE__ = {};
-      }
       window.__XR_STATE__.mode = "visit";
+      this.showARMessage(
+        "All Exhibits Placed! Enjoy the exhibit 🎨",
+        "#00ff00",
+      );
     }
 
     setTimeout(() => {
@@ -414,7 +566,7 @@ AFRAME.registerComponent("ar-hit-test", {
       return;
     }
 
-    if (this.placed >= this.data.maxPlaces) {
+    if (this.placed >= this.totalItems) {
       this.reticleEl.setAttribute("visible", false);
       return;
     }
@@ -435,7 +587,11 @@ AFRAME.registerComponent("ar-hit-test", {
     const hitMatrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
     const normalY = hitMatrix.elements[5];
 
-    if (normalY < 0.75) {
+    // normalY ≈ 1.0 → floor, normalY ≈ 0.0 → wall
+    const isWall = Math.abs(normalY) < 0.25;
+
+    if (!isWall && normalY < 0.75) {
+      // Surface is neither a clear floor nor a wall — hide reticle
       this.reticleEl.setAttribute("visible", false);
       return;
     }
@@ -447,8 +603,30 @@ AFRAME.registerComponent("ar-hit-test", {
       return;
     }
 
+    // Check distance to existing placed items
+    var isTooClose = false;
+    for (var i = 0; i < this.placedPositions.length; i++) {
+      if (position.distanceTo(this.placedPositions[i]) < 0.6) {
+        isTooClose = true;
+        break;
+      }
+    }
+
+    // Update reticle color:
+    var color;
+    if (isTooClose) {
+      color = "#ff0000";
+    } else if (isWall) {
+      color = "#00ffff";
+    } else {
+      color = "#00ff00";
+    }
+    this.reticleEl.setAttribute("material", "color", color);
+
+    this.isWall = isWall;
     this.latestHitMatrix = hitMatrix;
     this.reticleObj.matrix.copy(hitMatrix);
+    this.reticleObj.matrixWorldNeedsUpdate = true;
     this.reticleEl.setAttribute("visible", true);
   },
 });

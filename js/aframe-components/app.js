@@ -3,45 +3,47 @@
   const startBtn = document.getElementById("startBtn");
   const startError = document.getElementById("startError");
   const sceneEl = document.querySelector("a-scene");
-  const arHint = document.getElementById("arHint");
-  const debugPanel = document.getElementById("debugPanel");
-  const debugLogEl = document.getElementById("debugLog");
 
   window.__XR_STATE__ = {
     mode: "placement",
   };
 
-  const maxDebugLines = 15;
-  const debugLines = [];
-
-  window.debugLog = function (message, type = "info") {
-    const timestamp = new Date().toLocaleTimeString("uk-UA", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-
-    const colors = {
-      info: "#0f0",
-      warn: "#ff0",
-      error: "#f00",
-      success: "#0ff",
-    };
-
-    const line = `<div style="color: ${colors[type] || colors.info}">[${timestamp}] ${message}</div>`;
-    debugLines.push(line);
-
-    if (debugLines.length > maxDebugLines) {
-      debugLines.shift();
-    }
-
-    debugLogEl.innerHTML = debugLines.join("");
-    debugPanel.scrollTop = debugPanel.scrollHeight;
-  };
-
   function showError(msg) {
     startError.textContent = msg;
     startError.classList.remove("hidden");
+  }
+
+  function startAmbient() {
+    const ambient = document.getElementById("ambientSound");
+    if (!ambient) return;
+    ambient.loop = true; // ensure loop is set via JS — A-Frame may strip HTML attribute
+    ambient.volume = 0.3;
+    // play() returns a Promise — must catch rejection to avoid unhandled error
+    ambient
+      .play()
+      .catch((err) => console.warn("Ambient blocked by browser:", err));
+  }
+
+  function stopAmbient() {
+    const ambient = document.getElementById("ambientSound");
+    if (!ambient) return;
+    ambient.pause();
+    ambient.currentTime = 0;
+  }
+
+  // Block button until A-Frame renderer is fully initialized
+  startBtn.disabled = true;
+  startBtn.textContent = "Loading...";
+
+  // If scene is already loaded (e.g. cached), enable immediately
+  if (sceneEl.hasLoaded) {
+    startBtn.disabled = false;
+    startBtn.textContent = "START AR";
+  } else {
+    sceneEl.addEventListener("loaded", () => {
+      startBtn.disabled = false;
+      startBtn.textContent = "START AR";
+    });
   }
 
   startBtn.addEventListener("click", async () => {
@@ -52,13 +54,9 @@
       await sceneEl.enterAR();
 
       startScreen.style.display = "none";
-      arHint.style.display = "block";
-      arHint.textContent = "👆 Tap to place | 🎮 Grip to switch mode";
-      debugPanel.style.display = "block";
 
-      setTimeout(() => {
-        arHint.style.display = "none";
-      }, 5000);
+      // Start looping ambient music — called after user gesture so autoplay is allowed
+      startAmbient();
     } catch (e) {
       console.error(e);
       startBtn.disabled = false;
@@ -68,8 +66,9 @@
   });
 
   sceneEl.addEventListener("exit-vr", () => {
-    arHint.style.display = "none";
-    debugPanel.style.display = "none";
     startScreen.style.display = "flex";
+    startBtn.disabled = false;
+    startBtn.textContent = "START AR";
+    stopAmbient();
   });
 })();

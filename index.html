@@ -59,11 +59,15 @@
       </div>
     </div>
 
+    <!-- Audio elements must be outside a-scene so the browser controls them directly -->
+    <audio id="ambientSound" src="./media/audio/lofi-bg.wav" preload="auto" loop style="display:none"></audio>
+    <audio id="infoSound" src="./media/audio/blip-sound.wav" preload="auto" style="display:none"></audio>
+
     <a-scene
       vr-mode-ui="enabled: false"
       renderer="colorManagement: true; alpha: true; antialias: true"
       webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: anchors, dom-overlay; overlayElement: #arOverlay"
-      ar-hit-test="maxPlaces: 4"
+      ar-hit-test
     >
   
       <a-assets>
@@ -72,8 +76,20 @@
           src="./media/gltf/sculpture/imposter.glb"
         ></a-asset-item>
         <a-asset-item
-          id="artStatue"
-          src="./media/gltf/sculpture/art_statue.glb"
+          id="monaLisa"
+          src="./media/gltf/painting/mona-lisa.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="cowPainting"
+          src="./media/gltf/painting/cow.glb"
+        ></a-asset-item>
+              <a-asset-item
+          id="ImpressionistPainting1"
+          src="./media/gltf/painting/impressionisme_table1.glb"
+        ></a-asset-item>
+            <a-asset-item
+          id="ImpressionistPainting2"
+          src="./media/gltf/painting/impressionisme_table2.glb"
         ></a-asset-item>
         <a-asset-item
           id="chickenLessons"
