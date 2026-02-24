@@ -21,6 +21,13 @@ AFRAME.registerComponent("controller-ui", {
     const newMode = currentMode === "visit" ? "placement" : "visit";
     window.__XR_STATE__.mode = newMode;
 
+    // Notify listeners about mode change
+    try {
+      document.dispatchEvent(
+        new CustomEvent("xr-mode-changed", { detail: { mode: newMode } }),
+      );
+    } catch (e) {}
+
     this.showModeMessage(newMode);
   },
 

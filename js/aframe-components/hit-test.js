@@ -138,6 +138,7 @@ AFRAME.registerComponent("ar-hit-test", {
     this.exhibitRoot = document.getElementById("exhibitRoot");
     this.placed = 0;
     this.isPlacing = false;
+    this.isPointerOverUI = false;
     this.currentSculptureIndex = 0;
     this.currentPaintingIndex = 0;
     this.placedPositions = [];
@@ -326,6 +327,11 @@ ${sculptureInfo.facts}
       return;
     }
 
+    if (this.isPointerOverUI) {
+      this.showARMessage("UI focused — cannot place", "#ffff00");
+      return;
+    }
+
     const mode = window.__XR_STATE__?.mode || "placement";
 
     if (mode === "visit") {
@@ -372,182 +378,323 @@ ${sculptureInfo.facts}
     }
 
     this.isPlacing = true;
+    try {
+      const placementGroup = document.createElement("a-entity");
+      const groupObj = placementGroup.object3D;
 
-    const placementGroup = document.createElement("a-entity");
-    const groupObj = placementGroup.object3D;
+      if (this.isWall) {
+        // For wall placement: keep the group strictly vertical.
+        // Only extract position from the hit matrix and compute a Y-only rotation
+        // from the wall normal (Y axis of the hit matrix, projected onto the XZ plane).
+        const pos = new THREE.Vector3().setFromMatrixPosition(
+          this.latestHitMatrix,
+        );
+        groupObj.position.copy(pos);
 
-    if (this.isWall) {
-      // For wall placement: keep the group strictly vertical.
-      // Only extract position from the hit matrix and compute a Y-only rotation
-      // from the wall normal (Y axis of the hit matrix, projected onto the XZ plane).
-      const pos = new THREE.Vector3().setFromMatrixPosition(
-        this.latestHitMatrix,
-      );
-      groupObj.position.copy(pos);
+        // Wall normal = Y column of the hit matrix (elements[4], [5], [6])
+        const wallNX = this.latestHitMatrix.elements[4];
+        const wallNZ = this.latestHitMatrix.elements[6];
 
-      // Wall normal = Y column of the hit matrix (elements[4], [5], [6])
-      const wallNX = this.latestHitMatrix.elements[4];
-      const wallNZ = this.latestHitMatrix.elements[6];
+        // Rotate only around Y so the painting faces outward from the wall toward the viewer
+        groupObj.rotation.set(0, Math.atan2(wallNX, wallNZ), 0);
+        groupObj.matrixAutoUpdate = true;
+      } else {
+        groupObj.matrix.copy(this.latestHitMatrix);
+        groupObj.matrix.decompose(
+          groupObj.position,
+          groupObj.quaternion,
+          groupObj.scale,
+        );
+      }
 
-      // Rotate only around Y so the painting faces outward from the wall toward the viewer
-      groupObj.rotation.set(0, Math.atan2(wallNX, wallNZ), 0);
-      groupObj.matrixAutoUpdate = true;
-    } else {
-      groupObj.matrix.copy(this.latestHitMatrix);
-      groupObj.matrix.decompose(
-        groupObj.position,
-        groupObj.quaternion,
-        groupObj.scale,
-      );
-    }
+      if (this.isWall) {
+        // --- WALL: place a painting ---
+        const paintingData = this.paintingsData[this.currentPaintingIndex];
+        this.currentPaintingIndex++;
 
-    if (this.isWall) {
-      // --- WALL: place a painting ---
-      const paintingData = this.paintingsData[this.currentPaintingIndex];
-      this.currentPaintingIndex++;
+        const painting = document.createElement("a-entity");
+        painting.setAttribute("gltf-model", paintingData.id);
+        painting.setAttribute("scale", paintingData.scale || "0.6 0.6 0.6");
+        // Rotate so the painting faces outward from the wall
+        painting.setAttribute("rotation", paintingData.rotation || "0 180 0");
+        placementGroup.appendChild(painting);
 
-      const painting = document.createElement("a-entity");
-      painting.setAttribute("gltf-model", paintingData.id);
-      painting.setAttribute("scale", paintingData.scale || "0.6 0.6 0.6");
-      // Rotate so the painting faces outward from the wall
-      painting.setAttribute("rotation", paintingData.rotation || "0 180 0");
-      placementGroup.appendChild(painting);
+        // Rotate container (matches sculpture button layout)
+        const rotateContainer = document.createElement("a-entity");
+        rotateContainer.setAttribute("rotation", "0 180 0");
+        // position the button away from the painting so it doesn't overlap
+        rotateContainer.setAttribute("position", "0.45 0.15 0.01");
 
-      // Info button next to the painting
-      const infoBtn = document.createElement("a-plane");
-      infoBtn.setAttribute("width", "0.2");
-      infoBtn.setAttribute("height", "0.12");
-      infoBtn.setAttribute("class", "clickable");
-      infoBtn.setAttribute("cursor-clickable", "");
-      infoBtn.setAttribute(
-        "material",
-        "color: #667eea; shader: flat; side: double",
-      );
-      infoBtn.setAttribute("position", "0.35 0.2 0.01");
-      placementGroup.appendChild(infoBtn);
+        const rotateBtnInner = document.createElement("a-plane");
+        rotateBtnInner.setAttribute("width", "0.2");
+        rotateBtnInner.setAttribute("height", "0.12");
+        rotateBtnInner.setAttribute("class", "clickable");
+        rotateBtnInner.setAttribute("cursor-clickable", "");
+        rotateBtnInner.setAttribute(
+          "material",
+          "color: #667eea; shader: flat; side: double",
+        );
+        rotateBtnInner.setAttribute("position", "0 0 -0.001");
+        rotateContainer.appendChild(rotateBtnInner);
 
-      const infoBtnText = document.createElement("a-text");
-      infoBtnText.setAttribute("value", "Info");
-      infoBtnText.setAttribute("align", "center");
-      infoBtnText.setAttribute("width", "0.6");
-      infoBtnText.setAttribute("color", "#ffffff");
-      infoBtnText.setAttribute("position", "0.35 0.2 0.02");
-      placementGroup.appendChild(infoBtnText);
+        const iconPlane = document.createElement("a-plane");
+        iconPlane.setAttribute("width", "0.12");
+        iconPlane.setAttribute("height", "0.12");
+        iconPlane.setAttribute(
+          "material",
+          "src: media/icons/reset-right-line.svg; shader: flat; transparent: true; side: double",
+        );
+        iconPlane.setAttribute("position", "0 0 -0.01");
+        rotateContainer.appendChild(iconPlane);
 
-      var hitTestComp = this;
-      var capturedPaintingId = paintingData.id;
-      infoBtn.addEventListener("click", function () {
-        hitTestComp.playInfoSound();
-        hitTestComp.showInfoPanel(capturedPaintingId);
-      });
-    } else {
-      // --- FLOOR: place a table + sculpture ---
-      const table = document.createElement("a-entity");
-      table.setAttribute("gltf-model", "#table");
-      table.setAttribute("scale", "0.7 0.7 0.7");
-      placementGroup.appendChild(table);
+        const infoText = document.createElement("a-text");
+        infoText.setAttribute("value", "Info");
+        infoText.setAttribute("align", "center");
+        infoText.setAttribute("width", "0.6");
+        infoText.setAttribute("color", "#ffffff");
+        infoText.setAttribute("position", "0 0 0.01");
+        rotateContainer.appendChild(infoText);
 
-      const selectedSculptureData =
-        this.sculpturesData[this.currentSculptureIndex];
-      const selectedSculpture = selectedSculptureData.id;
-      this.currentSculptureIndex++;
+        placementGroup.appendChild(rotateContainer);
 
-      const sculptureWrapper = document.createElement("a-entity");
-      sculptureWrapper.setAttribute("scale", "0.4 0.4 0.4");
+        var hitTestComp = this;
+        var capturedPainting = painting;
 
-      const statue = document.createElement("a-entity");
-      statue.setAttribute("gltf-model", selectedSculpture);
-      sculptureWrapper.appendChild(statue);
-      placementGroup.appendChild(sculptureWrapper);
+        // Initialize visibility based on current mode
+        (function updatePaintingButtonVisibility() {
+          const mode = window.__XR_STATE__?.mode || "placement";
+          iconPlane.setAttribute("visible", mode === "placement");
+          infoText.setAttribute("visible", mode === "visit");
+        })();
 
-      // Grey platform on top of table
-      const platform = document.createElement("a-plane");
-      platform.setAttribute("rotation", "-90 0 0");
-      platform.setAttribute("width", "0.5");
-      platform.setAttribute("height", "0.5");
-      platform.setAttribute(
-        "material",
-        "color: #9ca3af; shader: flat; side: double",
-      );
-      placementGroup.appendChild(platform);
+        document.addEventListener("xr-mode-changed", function (ev) {
+          const mode =
+            ev?.detail?.mode || window.__XR_STATE__?.mode || "placement";
+          iconPlane.setAttribute("visible", mode === "placement");
+          infoText.setAttribute("visible", mode === "visit");
+        });
 
-      // Info button
-      const infoBubble = document.createElement("a-entity");
-      infoBubble.setAttribute("rotation", "0 180 0");
+        rotateBtnInner.addEventListener("mouseenter", function () {
+          hitTestComp.isPointerOverUI = true;
+        });
+        rotateBtnInner.addEventListener("mouseleave", function () {
+          hitTestComp.isPointerOverUI = false;
+        });
+        rotateBtnInner.addEventListener("click", function () {
+          const mode = window.__XR_STATE__?.mode || "placement";
 
-      const buttonBorder = document.createElement("a-plane");
-      buttonBorder.setAttribute("width", "0.2");
-      buttonBorder.setAttribute("height", "0.12");
-      buttonBorder.setAttribute("class", "clickable");
-      buttonBorder.setAttribute("cursor-clickable", "");
-      buttonBorder.setAttribute(
-        "material",
-        "color: #667eea; shader: flat; side: double",
-      );
-      buttonBorder.setAttribute("position", "0 0 -0.001");
-      infoBubble.appendChild(buttonBorder);
-
-      const bubbleText = document.createElement("a-text");
-      bubbleText.setAttribute("value", "Info");
-      bubbleText.setAttribute("align", "center");
-      bubbleText.setAttribute("width", "0.6");
-      bubbleText.setAttribute("color", "#ffffff");
-      bubbleText.setAttribute("position", "0 0 0.01");
-      infoBubble.appendChild(bubbleText);
-
-      placementGroup.appendChild(infoBubble);
-
-      var hitTestComp2 = this;
-      var capturedSculptureId = selectedSculpture;
-      buttonBorder.addEventListener("click", function () {
-        hitTestComp2.playInfoSound();
-        hitTestComp2.showInfoPanel(capturedSculptureId);
-      });
-
-      table.addEventListener("model-loaded", function () {
-        const tableObj = table.getObject3D("mesh");
-        if (tableObj) {
-          const box = new THREE.Box3().setFromObject(tableObj);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-          const tableTop = size.y;
-
-          let sculptureHeight;
-          if (
-            selectedSculpture === "#chickenLessons" ||
-            selectedSculpture === "#plant"
-          ) {
-            sculptureHeight = tableTop * 1;
-            platform.setAttribute("position", `0 ${sculptureHeight - 0.15} 0`);
-          } else {
-            sculptureHeight = tableTop * 0.7;
-            platform.setAttribute("position", `0 ${sculptureHeight + 0.02} 0`);
+          function parseRot(rot) {
+            if (typeof rot === "string") {
+              const parts = rot.split(" ").map(Number);
+              return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+            }
+            if (rot && typeof rot === "object") {
+              return [rot.x || 0, rot.y || 0, rot.z || 0];
+            }
+            return [0, 0, 0];
           }
-          sculptureWrapper.setAttribute("position", `0 ${sculptureHeight} 0`);
-          infoBubble.setAttribute(
-            "position",
-            `0.25 ${sculptureHeight + 0.2} 0`,
-          );
-        } else {
-          sculptureWrapper.setAttribute("position", "0 1 0");
-          platform.setAttribute("position", "0 1 0");
-          infoBubble.setAttribute("position", "0.25 1.2 0");
-        }
-      });
-    }
 
-    this.exhibitRoot.appendChild(placementGroup);
-    this.exhibitRoot.setAttribute("visible", true);
-    this.placedPositions.push(newPosition);
-    this.placed++;
+          if (mode === "visit") {
+            hitTestComp.playInfoSound();
+            hitTestComp.showInfoPanel(paintingData.id);
+            return;
+          }
 
-    if (this.placed >= this.totalItems) {
-      this.reticleEl.setAttribute("visible", false);
-      window.__XR_STATE__.mode = "visit";
-      this.showARMessage(
-        "All Exhibits Placed! Enjoy the exhibit 🎨",
-        "#00ff00",
-      );
+          const currentRotation = capturedPainting.getAttribute("rotation");
+          const [x, y, z] = parseRot(currentRotation);
+          if (paintingData && paintingData.id === "#cowPainting") {
+            capturedPainting.setAttribute("rotation", {
+              x: x + 30,
+              y: y,
+              z: z,
+            });
+          } else {
+            capturedPainting.setAttribute("rotation", {
+              x: x,
+              y: y,
+              z: z + 30,
+            });
+          }
+        });
+      } else {
+        // --- FLOOR: place a table + sculpture ---
+        const table = document.createElement("a-entity");
+        table.setAttribute("gltf-model", "#table");
+        table.setAttribute("scale", "0.7 0.7 0.7");
+        placementGroup.appendChild(table);
+
+        const selectedSculptureData =
+          this.sculpturesData[this.currentSculptureIndex];
+        const selectedSculpture = selectedSculptureData.id;
+        this.currentSculptureIndex++;
+
+        const sculptureWrapper = document.createElement("a-entity");
+        sculptureWrapper.setAttribute("scale", "0.4 0.4 0.4");
+
+        const statue = document.createElement("a-entity");
+        statue.setAttribute("gltf-model", selectedSculpture);
+        sculptureWrapper.appendChild(statue);
+        placementGroup.appendChild(sculptureWrapper);
+
+        // Grey platform on top of table
+        const platform = document.createElement("a-plane");
+        platform.setAttribute("rotation", "-90 0 0");
+        platform.setAttribute("width", "0.5");
+        platform.setAttribute("height", "0.5");
+        platform.setAttribute(
+          "material",
+          "color: #9ca3af; shader: flat; side: double",
+        );
+        placementGroup.appendChild(platform);
+
+        // Rotate button
+        const rotateBubble = document.createElement("a-entity");
+        rotateBubble.setAttribute("rotation", "0 180 0");
+
+        const rotateBtnBorder = document.createElement("a-plane");
+        rotateBtnBorder.setAttribute("width", "0.2");
+        rotateBtnBorder.setAttribute("height", "0.12");
+        rotateBtnBorder.setAttribute("class", "clickable");
+        rotateBtnBorder.setAttribute("cursor-clickable", "");
+        rotateBtnBorder.setAttribute(
+          "material",
+          "color: #667eea; shader: flat; side: double",
+        );
+        rotateBtnBorder.setAttribute("position", "0 0 -0.001");
+        rotateBubble.appendChild(rotateBtnBorder);
+
+        const iconPlane2 = document.createElement("a-plane");
+        iconPlane2.setAttribute("width", "0.1");
+        iconPlane2.setAttribute("height", "0.1");
+        iconPlane2.setAttribute(
+          "material",
+          "src: media/icons/reset-right-line.svg; shader: flat; transparent: true; side: double",
+        );
+        iconPlane2.setAttribute("position", "0 0 0.01");
+        rotateBubble.appendChild(iconPlane2);
+
+        placementGroup.appendChild(rotateBubble);
+
+        // Info text for sculptures (visit mode)
+        const bubbleText = document.createElement("a-text");
+        bubbleText.setAttribute("value", "Info");
+        bubbleText.setAttribute("align", "center");
+        bubbleText.setAttribute("width", "0.6");
+        bubbleText.setAttribute("color", "#ffffff");
+        bubbleText.setAttribute("position", "0 0 0.01");
+        rotateBubble.appendChild(bubbleText);
+
+        var hitTestComp2 = this;
+        var capturedSculptureWrapper = sculptureWrapper;
+        var capturedSculptureId = selectedSculpture;
+
+        // Initialize visibility based on current mode
+        (function updateSculptureButtonVisibility() {
+          const mode = window.__XR_STATE__?.mode || "placement";
+          iconPlane2.setAttribute("visible", mode === "placement");
+          bubbleText.setAttribute("visible", mode === "visit");
+        })();
+
+        document.addEventListener("xr-mode-changed", function (ev) {
+          const mode =
+            ev?.detail?.mode || window.__XR_STATE__?.mode || "placement";
+          iconPlane2.setAttribute("visible", mode === "placement");
+          bubbleText.setAttribute("visible", mode === "visit");
+        });
+
+        rotateBtnBorder.addEventListener("mouseenter", function () {
+          hitTestComp2.isPointerOverUI = true;
+        });
+        rotateBtnBorder.addEventListener("mouseleave", function () {
+          hitTestComp2.isPointerOverUI = false;
+        });
+        rotateBtnBorder.addEventListener("click", function () {
+          const mode = window.__XR_STATE__?.mode || "placement";
+
+          function parseRot(rot) {
+            if (typeof rot === "string") {
+              const parts = rot.split(" ").map(Number);
+              return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+            }
+            if (rot && typeof rot === "object") {
+              return [rot.x || 0, rot.y || 0, rot.z || 0];
+            }
+            return [0, 0, 0];
+          }
+
+          if (mode === "visit") {
+            hitTestComp2.playInfoSound();
+            hitTestComp2.showInfoPanel(capturedSculptureId);
+            return;
+          }
+
+          const currentRotation =
+            capturedSculptureWrapper.getAttribute("rotation");
+          const [x, y, z] = parseRot(currentRotation);
+          // Rotate 30 degrees around Y axis
+          capturedSculptureWrapper.setAttribute("rotation", {
+            x: x,
+            y: y + 30,
+            z: z,
+          });
+        });
+
+        table.addEventListener("model-loaded", function () {
+          const tableObj = table.getObject3D("mesh");
+          if (tableObj) {
+            const box = new THREE.Box3().setFromObject(tableObj);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const tableTop = size.y;
+
+            let sculptureHeight;
+            if (
+              selectedSculpture === "#chickenLessons" ||
+              selectedSculpture === "#plant"
+            ) {
+              sculptureHeight = tableTop * 1;
+              platform.setAttribute(
+                "position",
+                `0 ${sculptureHeight - 0.15} 0`,
+              );
+            } else {
+              sculptureHeight = tableTop * 0.7;
+              platform.setAttribute(
+                "position",
+                `0 ${sculptureHeight + 0.02} 0`,
+              );
+            }
+            sculptureWrapper.setAttribute("position", `0 ${sculptureHeight} 0`);
+            rotateBubble.setAttribute(
+              "position",
+              `0.25 ${sculptureHeight + 0.2} 0`,
+            );
+          } else {
+            sculptureWrapper.setAttribute("position", "0 1 0");
+            platform.setAttribute("position", "0 1 0");
+            rotateBubble.setAttribute("position", "0.25 1.2 0");
+          }
+        });
+      }
+
+      this.exhibitRoot.appendChild(placementGroup);
+      this.exhibitRoot.setAttribute("visible", true);
+      this.placedPositions.push(newPosition);
+      this.placed++;
+
+      if (this.placed >= this.totalItems) {
+        this.reticleEl.setAttribute("visible", false);
+        window.__XR_STATE__.mode = "visit";
+        this.showARMessage(
+          "All Exhibits Placed! Enjoy the exhibit 🎨",
+          "#00ff00",
+        );
+      }
+    } catch (e) {
+      this.isPlacing = false;
+      this.showARMessage("Placement error: " + (e?.message || e), "#ff0000");
+      console.error(e);
+      return;
     }
 
     setTimeout(() => {
