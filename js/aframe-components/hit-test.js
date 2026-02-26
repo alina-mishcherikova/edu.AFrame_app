@@ -1,3 +1,12 @@
+import { sculpturesData, paintingsData } from "../data/exhibits.js";
+import {
+  showARMessage,
+  showInfoPanel,
+  playInfoSound,
+  parseRot,
+  bindModeVisibility,
+} from "./elements-ui.js";
+
 if (AFRAME.components["ar-reticle"]) {
   delete AFRAME.components["ar-reticle"];
 }
@@ -8,37 +17,41 @@ AFRAME.registerComponent("ar-reticle", {
   },
 });
 
-// Component for billboard effect - always face camera (Y axis only)
+// Component for billboard
 AFRAME.registerComponent("billboard", {
   init: function () {
-    this.camera = null;
+    // cache references to avoid repeated lookups
+    this.camera = this.el.sceneEl && this.el.sceneEl.camera;
+    this.obj3D = this.el.object3D;
+    this._lookAtTarget = new THREE.Vector3();
   },
   tick: function () {
-    if (!this.camera) {
-      this.camera = this.el.sceneEl.camera;
-    }
-    if (this.camera) {
-      var cameraPos = this.camera.position;
-      var objectPos = this.el.object3D.position;
-
-      var dx = cameraPos.x - objectPos.x;
-      var dz = cameraPos.z - objectPos.z;
-      var angle = Math.atan2(dx, dz);
-
-      this.el.object3D.rotation.y = angle;
-    }
+    // lazy-find camera if it wasn't available during init
+    const cam =
+      this.camera || (this.camera = this.el.sceneEl && this.el.sceneEl.camera);
+    if (!cam) return;
+    // point toward camera but keep the object's Y (so only yaw changes)
+    this._lookAtTarget.set(
+      cam.position.x,
+      this.obj3D.position.y,
+      cam.position.z,
+    );
+    this.obj3D.lookAt(this._lookAtTarget);
+    // ensure only Y rotation remains (zero pitch/roll)
+    this.obj3D.rotation.x = 0;
+    this.obj3D.rotation.z = 0;
   },
 });
 
 // Component for making elements clickable in AR
 AFRAME.registerComponent("cursor-clickable", {
   init: function () {
-    var self = this;
-    this.el.addEventListener("mouseenter", function () {
-      self.el.setAttribute("scale", "1.1 1.1 1.1");
+    var el = this.el;
+    el.addEventListener("mouseenter", function () {
+      el.setAttribute("scale", "1.1 1.1 1.1");
     });
-    this.el.addEventListener("mouseleave", function () {
-      self.el.setAttribute("scale", "1 1 1");
+    el.addEventListener("mouseleave", function () {
+      el.setAttribute("scale", "1 1 1");
     });
   },
 });
@@ -50,88 +63,10 @@ if (AFRAME.components["ar-hit-test"]) {
 AFRAME.registerComponent("ar-hit-test", {
   schema: {},
 
-  sculpturesData: [
-    {
-      id: "#chickenLessons",
-      name: "Chicken Lessons",
-      author: "Unknown Artist",
-      year: "2024",
-      description: "A fascinating sculpture depicting the wisdom of nature",
-      facts: "This piece explores the connection between animals and education",
-    },
-    {
-      id: "#imposter",
-      name: "Imposter",
-      author: "Digital Creator",
-      year: "2023",
-      description: "A modern interpretation of identity and perception",
-      facts: "Inspired by contemporary social phenomena and digital culture",
-    },
-    {
-      id: "#plant",
-      name: "Plant",
-      author: "Nature Sculptor",
-      year: "2024",
-      description: "An organic form celebrating natural beauty",
-      facts:
-        "Created to remind viewers of the importance of environmental conservation",
-    },
-    {
-      id: "#lava-three",
-      name: "Lava Three",
-      author: "Fire Artist",
-      year: "2022",
-      description: "A dynamic piece representing volcanic energy",
-      facts: "The design was inspired by actual lava flow patterns",
-    },
-  ],
-
-  // Paintings placed on walls
-  paintingsData: [
-    {
-      id: "#monaLisa",
-      name: "Mona Lisa",
-      author: "Leonardo da Vinci",
-      year: "1503",
-      description: "One of the most famous portraits in the world",
-      facts: "The painting is kept in the Louvre Museum in Paris",
-      scale: "0.05 0.05 0.05",
-      rotation: "0 180 0",
-    },
-    {
-      id: "#cowPainting",
-      name: "Cow Painting",
-      author: "Unknown Artist",
-      year: "2024",
-      description: "A contemporary take on pastoral art",
-      facts: "Inspired by the Dutch Golden Age tradition of animal painting",
-      scale: "0.6 0.6 0.6",
-      rotation: "0 270 0",
-    },
-    {
-      id: "#ImpressionistPainting1",
-      name: "Impressionist Painting 1",
-      author: "Unknown Artist",
-      year: "2024",
-      description: "An impressionist interpretation of a table setting",
-      facts:
-        "Inspired by the French Impressionist movement of the 19th century",
-      scale: "0.1 0.1 0.1",
-    },
-    {
-      id: "#ImpressionistPainting2",
-      name: "Impressionist Painting 2",
-      author: "Unknown Artist",
-      year: "2024",
-      description: "An impressionist interpretation of a table setting",
-      facts:
-        "Inspired by the French Impressionist movement of the 19th century",
-      scale: "0.6 0.6 0.6",
-      rotation: "0 180 -90",
-    },
-  ],
-
   init() {
+    // load exhibit data from module imports
+    this.sculpturesData = sculpturesData;
+    this.paintingsData = paintingsData;
     this.sceneEl = this.el.sceneEl;
     this.reticleEl = document.getElementById("reticle");
     this.reticleObj = this.reticleEl.object3D;
@@ -143,6 +78,7 @@ AFRAME.registerComponent("ar-hit-test", {
     this.currentPaintingIndex = 0;
     this.placedPositions = [];
     this.isWall = false; // true when reticle is aimed at a vertical surface
+    this.replacePending = null; // { group, type, id }
     this.totalItems = this.sculpturesData.length + this.paintingsData.length;
 
     this.onXRFrame = this.onXRFrame.bind(this);
@@ -157,125 +93,6 @@ AFRAME.registerComponent("ar-hit-test", {
     });
   },
 
-  showARMessage(text, color = "#00ff00") {
-    const existingMsg = document.getElementById("arMessage");
-    if (existingMsg) existingMsg.parentNode.removeChild(existingMsg);
-
-    const msg = document.createElement("a-entity");
-    msg.id = "arMessage";
-    msg.setAttribute("position", "0 1.5 -1");
-
-    const bg = document.createElement("a-plane");
-    bg.setAttribute("width", "1.5");
-    bg.setAttribute("height", "0.3");
-    bg.setAttribute("material", "color: #1a1a2e; opacity: 0.9; shader: flat");
-    msg.appendChild(bg);
-
-    const txt = document.createElement("a-text");
-    txt.setAttribute("value", text);
-    txt.setAttribute("align", "center");
-    txt.setAttribute("width", "2");
-    txt.setAttribute("color", color);
-    txt.setAttribute("position", "0 0 0.01");
-    msg.appendChild(txt);
-
-    this.sceneEl.appendChild(msg);
-
-    setTimeout(function () {
-      msg.remove();
-    }, 3000);
-  },
-
-  showInfoPanel(sculptureId) {
-    const existingPanel = document.getElementById("infoPanel");
-    if (existingPanel) {
-      existingPanel.remove();
-      return;
-    }
-
-    // Search in both sculptures and paintings data
-    var sculptureInfo = null;
-    for (var i = 0; i < this.sculpturesData.length; i++) {
-      if (this.sculpturesData[i].id === sculptureId) {
-        sculptureInfo = this.sculpturesData[i];
-        break;
-      }
-    }
-    if (!sculptureInfo) {
-      for (var i = 0; i < this.paintingsData.length; i++) {
-        if (this.paintingsData[i].id === sculptureId) {
-          sculptureInfo = this.paintingsData[i];
-          break;
-        }
-      }
-    }
-
-    if (!sculptureInfo) {
-      return;
-    }
-
-    const panel = document.createElement("a-entity");
-    panel.id = "infoPanel";
-    panel.setAttribute("position", "-0.2 1.8 -1.5");
-    panel.setAttribute("billboard", "");
-
-    const panelBg = document.createElement("a-plane");
-    panelBg.setAttribute("width", "0.9");
-    panelBg.setAttribute("height", "0.5");
-    panelBg.setAttribute(
-      "material",
-      "color: #ffffff; shader: flat; opacity: 0.95",
-    );
-    panel.appendChild(panelBg);
-
-    const closeButton = document.createElement("a-plane");
-    closeButton.setAttribute("width", "0.15");
-    closeButton.setAttribute("height", "0.15");
-    closeButton.setAttribute("position", "0.37 0.17 0.01");
-    closeButton.setAttribute("material", "color: #667eea; shader: flat");
-    closeButton.setAttribute("class", "clickable");
-    closeButton.setAttribute("cursor-clickable", "");
-    panel.appendChild(closeButton);
-
-    const closeText = document.createElement("a-text");
-    closeText.setAttribute("value", "X");
-    closeText.setAttribute("align", "center");
-    closeText.setAttribute("width", "0.4");
-    closeText.setAttribute("color", "#ffffff");
-    closeText.setAttribute("position", "0.37 0.17 0.02");
-    panel.appendChild(closeText);
-
-    const infoText = document.createElement("a-text");
-    const textContent = `${sculptureInfo.name}
-Author: ${sculptureInfo.author}
-Year: ${sculptureInfo.year}
-${sculptureInfo.description}
-Fun Fact:
-${sculptureInfo.facts}
-`;
-    infoText.setAttribute("value", textContent);
-    infoText.setAttribute("align", "center");
-    infoText.setAttribute("width", "0.5");
-    infoText.setAttribute("color", "#1f2937");
-    infoText.setAttribute("position", "0 0.04 0.01");
-    infoText.setAttribute("wrap-count", "28");
-    panel.appendChild(infoText);
-
-    this.sceneEl.appendChild(panel);
-
-    closeButton.addEventListener("click", function () {
-      panel.remove();
-    });
-  },
-
-  // Helper: play blip sound on info panel open
-  playInfoSound() {
-    const snd = document.getElementById("infoSound");
-    if (!snd) return;
-    snd.currentTime = 0;
-    snd.play().catch((err) => console.warn("Info sound blocked:", err));
-  },
-
   async setupXR() {
     // Wait up to 500ms for the session to become available
     let session = null;
@@ -285,7 +102,7 @@ ${sculptureInfo.facts}
       await new Promise((r) => setTimeout(r, 50));
     }
     if (!session) {
-      this.showARMessage("XR session not found", "#ff0000");
+      showARMessage(this.sceneEl, "XR session not found", "#ff0000");
       return;
     }
 
@@ -299,7 +116,7 @@ ${sculptureInfo.facts}
       });
       session.requestAnimationFrame(this.onXRFrame);
     } catch (e) {
-      this.showARMessage("Hit-test error: " + e.message, "#ff0000");
+      showARMessage(this.sceneEl, "Hit-test error: " + e.message, "#ff0000");
     }
   },
 
@@ -319,45 +136,142 @@ ${sculptureInfo.facts}
     this.latestHitMatrix = null;
     this.isWall = false;
     if (window.__XR_STATE__) window.__XR_STATE__.mode = "placement";
+    if (window.__XR_STATE__) {
+      document.dispatchEvent(
+        new CustomEvent("xr-mode-changed", { detail: { mode: "placement" } }),
+      );
+    }
   },
 
   onSelect() {
+    // bindModeVisibility was moved to elements-ui.js
     if (this.isPlacing) {
-      this.showARMessage("Wait...", "#ffff00");
+      showARMessage(this.sceneEl, "Wait...", "#ffff00");
       return;
     }
 
     if (this.isPointerOverUI) {
-      this.showARMessage("UI focused — cannot place", "#ffff00");
+      showARMessage(this.sceneEl, "UI focused — cannot place", "#ffff00");
       return;
     }
 
     const mode = window.__XR_STATE__?.mode || "placement";
+
+    // If a replacement is pending, move that group to the current hit position
+    if (this.replacePending) {
+      if (!this.latestHitMatrix) {
+        showARMessage(this.sceneEl, "No Surface Detected", "#ff0000");
+        return;
+      }
+
+      const newPosition = new THREE.Vector3().setFromMatrixPosition(
+        this.latestHitMatrix,
+      );
+
+      // Prevent placing sculptures on walls and paintings on the floor
+      if (this.replacePending) {
+        if (this.replacePending.type === "sculpture" && this.isWall) {
+          showARMessage(
+            this.sceneEl,
+            "Cannot place sculpture on a wall",
+            "#ffff00",
+          );
+          return;
+        }
+        if (this.replacePending.type === "painting" && !this.isWall) {
+          showARMessage(
+            this.sceneEl,
+            "Cannot place painting on the floor",
+            "#ffff00",
+          );
+          return;
+        }
+      }
+
+      // ensure not too close to other items
+      var tooCloseReplace = false;
+      for (var ri = 0; ri < this.placedPositions.length; ri++) {
+        if (newPosition.distanceTo(this.placedPositions[ri]) < 0.6) {
+          tooCloseReplace = true;
+          break;
+        }
+      }
+      if (tooCloseReplace) {
+        showARMessage(this.sceneEl, "Too Close! Min 60cm Apart", "#ff0000");
+        return;
+      }
+
+      try {
+        var pending = this.replacePending;
+        var groupObj = pending.group.object3D;
+        if (this.isWall) {
+          const pos = new THREE.Vector3().setFromMatrixPosition(
+            this.latestHitMatrix,
+          );
+          groupObj.position.copy(pos);
+          const wallNX = this.latestHitMatrix.elements[4];
+          const wallNZ = this.latestHitMatrix.elements[6];
+          groupObj.rotation.set(0, Math.atan2(wallNX, wallNZ), 0);
+          groupObj.matrixAutoUpdate = true;
+        } else {
+          groupObj.matrix.copy(this.latestHitMatrix);
+          groupObj.matrix.decompose(
+            groupObj.position,
+            groupObj.quaternion,
+            groupObj.scale,
+          );
+        }
+
+        // re-add to scene (if needed), show group and update tracking
+        if (!this.exhibitRoot.contains(pending.group)) {
+          this.exhibitRoot.appendChild(pending.group);
+        }
+        try {
+          pending.group.setAttribute("visible", true);
+        } catch (e) {}
+        this.exhibitRoot.setAttribute("visible", true);
+        this.placedPositions.push(newPosition);
+        this.placed++;
+        try {
+          pending.group.object3D.matrixWorldNeedsUpdate = true;
+        } catch (e) {}
+        showARMessage(this.sceneEl, "Item moved", "#00ff00");
+      } catch (e) {
+        console.error(e);
+        showARMessage(this.sceneEl, "Replace error", "#ff0000");
+      }
+
+      this.replacePending = null;
+      return;
+    }
 
     if (mode === "visit") {
       return;
     }
 
     if (!this.latestHitMatrix) {
-      this.showARMessage("No Surface Detected", "#ff0000");
-      return;
-    }
-
-    if (this.placed >= this.totalItems) {
-      this.showARMessage("All Exhibits Placed", "#ff0000");
+      showARMessage(this.sceneEl, "No Surface Detected", "#ff0000");
       return;
     }
 
     // Check if items of the current surface type are exhausted
     if (this.isWall && this.currentPaintingIndex >= this.paintingsData.length) {
-      this.showARMessage("All Paintings Placed — aim at the floor", "#ffff00");
+      showARMessage(
+        this.sceneEl,
+        "All Paintings Placed — aim at the floor",
+        "#ffff00",
+      );
       return;
     }
     if (
       !this.isWall &&
       this.currentSculptureIndex >= this.sculpturesData.length
     ) {
-      this.showARMessage("All Sculptures Placed — aim at a wall", "#ffff00");
+      showARMessage(
+        this.sceneEl,
+        "All Sculptures Placed — aim at a wall",
+        "#ffff00",
+      );
       return;
     }
 
@@ -373,7 +287,7 @@ ${sculptureInfo.facts}
       }
     }
     if (tooClose) {
-      this.showARMessage("Too Close! Min 60cm Apart", "#ff0000");
+      showARMessage(this.sceneEl, "Too Close! Min 60cm Apart", "#ff0000");
       return;
     }
 
@@ -409,8 +323,24 @@ ${sculptureInfo.facts}
 
       if (this.isWall) {
         // --- WALL: place a painting ---
-        const paintingData = this.paintingsData[this.currentPaintingIndex];
-        this.currentPaintingIndex++;
+        // If user selected a specific item via menu, use that
+        const selected = window.__XR_STATE__?.selected;
+        let paintingData = null;
+        if (selected && selected.type === "painting") {
+          paintingData = this.paintingsData.find((p) => p.id === selected.id);
+          if (!paintingData) {
+            showARMessage(
+              this.sceneEl,
+              "Selected painting not available",
+              "#ff0000",
+            );
+            this.isPlacing = false;
+            return;
+          }
+        } else {
+          paintingData = this.paintingsData[this.currentPaintingIndex];
+          this.currentPaintingIndex++;
+        }
 
         const painting = document.createElement("a-entity");
         painting.setAttribute("gltf-model", paintingData.id);
@@ -422,8 +352,7 @@ ${sculptureInfo.facts}
         // Rotate container (matches sculpture button layout)
         const rotateContainer = document.createElement("a-entity");
         rotateContainer.setAttribute("rotation", "0 180 0");
-        // position the button away from the painting so it doesn't overlap
-        rotateContainer.setAttribute("position", "0.45 0.15 0.01");
+        rotateContainer.setAttribute("position", "0.6 0.15 0.12");
 
         const rotateBtnInner = document.createElement("a-plane");
         rotateBtnInner.setAttribute("width", "0.2");
@@ -434,45 +363,89 @@ ${sculptureInfo.facts}
           "material",
           "color: #667eea; shader: flat; side: double",
         );
-        rotateBtnInner.setAttribute("position", "0 0 -0.001");
+        rotateBtnInner.setAttribute("position", "0 0 0.12");
         rotateContainer.appendChild(rotateBtnInner);
 
         const iconPlane = document.createElement("a-plane");
-        iconPlane.setAttribute("width", "0.12");
-        iconPlane.setAttribute("height", "0.12");
+        iconPlane.setAttribute("width", "0.1");
+        iconPlane.setAttribute("height", "0.1");
         iconPlane.setAttribute(
           "material",
           "src: media/icons/reset-right-line.svg; shader: flat; transparent: true; side: double",
         );
-        iconPlane.setAttribute("position", "0 0 -0.01");
+        // center rotate icon slightly in front of painting
+        try {
+          iconPlane.setAttribute("position", "0 0 0.11");
+          iconPlane.setAttribute(
+            "visible",
+            window.__XR_STATE__ && window.__XR_STATE__.mode === "placement",
+          );
+        } catch (e) {}
         rotateContainer.appendChild(iconPlane);
+
+        // Rotate-left button (opposite direction) for paintings
+        const rotateBtnInnerLeft = document.createElement("a-plane");
+        rotateBtnInnerLeft.setAttribute("width", "0.2");
+        rotateBtnInnerLeft.setAttribute("height", "0.12");
+        rotateBtnInnerLeft.setAttribute("class", "clickable");
+        rotateBtnInnerLeft.setAttribute("cursor-clickable", "");
+        rotateBtnInnerLeft.setAttribute(
+          "material",
+          "color: #667eea; shader: flat; side: double",
+        );
+        // left rotate positioned to the right of the center button for equal spacing
+        rotateBtnInnerLeft.setAttribute("position", "0.25 0 0.12");
+        rotateContainer.appendChild(rotateBtnInnerLeft);
+
+        const iconPlaneLeft = document.createElement("a-plane");
+        iconPlaneLeft.setAttribute("width", "0.1");
+        iconPlaneLeft.setAttribute("height", "0.1");
+        iconPlaneLeft.setAttribute(
+          "material",
+          "src: media/icons/reset-left-line.svg; shader: flat; transparent: true; side: double",
+        );
+        // left rotate icon slightly in front
+        try {
+          iconPlaneLeft.setAttribute("position", "0.25 0 0.11");
+          iconPlaneLeft.setAttribute(
+            "visible",
+            window.__XR_STATE__ && window.__XR_STATE__.mode === "placement",
+          );
+        } catch (e) {}
+        rotateContainer.appendChild(iconPlaneLeft);
+
+        // (bindings moved after infoContainer is created)
 
         const infoText = document.createElement("a-text");
         infoText.setAttribute("value", "Info");
-        infoText.setAttribute("align", "center");
         infoText.setAttribute("width", "0.6");
         infoText.setAttribute("color", "#ffffff");
-        infoText.setAttribute("position", "0 0 0.01");
-        rotateContainer.appendChild(infoText);
+        infoText.setAttribute("position", "0 0 0.03");
 
+        // container with background so text is always visible in visit mode
+        const infoContainer = document.createElement("a-entity");
+        // Position the info container so its world X aligns with the painting plane (painting X = 0).
+        // rotateContainer is at X = 0.6, so offset by -0.6 to land at world X = 0.
+        infoContainer.setAttribute("position", "0 0 0");
+        // cancel parent rotation so text stays upright
+        infoContainer.setAttribute("rotation", "0 180 0");
+        // ensure the info always faces the camera and remains level
+        infoContainer.setAttribute("billboard", "");
+        // simple text-only info button (no background)
+        infoContainer.appendChild(infoText);
+
+        rotateContainer.appendChild(infoContainer);
         placementGroup.appendChild(rotateContainer);
 
         var hitTestComp = this;
         var capturedPainting = painting;
 
-        // Initialize visibility based on current mode
-        (function updatePaintingButtonVisibility() {
-          const mode = window.__XR_STATE__?.mode || "placement";
-          iconPlane.setAttribute("visible", mode === "placement");
-          infoText.setAttribute("visible", mode === "visit");
-        })();
-
-        document.addEventListener("xr-mode-changed", function (ev) {
-          const mode =
-            ev?.detail?.mode || window.__XR_STATE__?.mode || "placement";
-          iconPlane.setAttribute("visible", mode === "placement");
-          infoText.setAttribute("visible", mode === "visit");
-        });
+        // Bind mode visibility for these elements (bind to container)
+        bindModeVisibility(iconPlane, infoContainer);
+        try {
+          bindModeVisibility(iconPlaneLeft, infoContainer);
+          bindModeVisibility(rotateBtnInnerLeft, infoContainer);
+        } catch (e) {}
 
         rotateBtnInner.addEventListener("mouseenter", function () {
           hitTestComp.isPointerOverUI = true;
@@ -483,20 +456,14 @@ ${sculptureInfo.facts}
         rotateBtnInner.addEventListener("click", function () {
           const mode = window.__XR_STATE__?.mode || "placement";
 
-          function parseRot(rot) {
-            if (typeof rot === "string") {
-              const parts = rot.split(" ").map(Number);
-              return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
-            }
-            if (rot && typeof rot === "object") {
-              return [rot.x || 0, rot.y || 0, rot.z || 0];
-            }
-            return [0, 0, 0];
-          }
-
           if (mode === "visit") {
-            hitTestComp.playInfoSound();
-            hitTestComp.showInfoPanel(paintingData.id);
+            playInfoSound();
+            showInfoPanel(
+              hitTestComp.sceneEl,
+              hitTestComp.sculpturesData,
+              hitTestComp.paintingsData,
+              paintingData.id,
+            );
             return;
           }
 
@@ -516,17 +483,154 @@ ${sculptureInfo.facts}
             });
           }
         });
+
+        // Left-rotate handler: rotate -30 degrees
+        rotateBtnInnerLeft.addEventListener("mouseenter", function () {
+          hitTestComp.isPointerOverUI = true;
+        });
+        rotateBtnInnerLeft.addEventListener("mouseleave", function () {
+          hitTestComp.isPointerOverUI = false;
+        });
+        rotateBtnInnerLeft.addEventListener("click", function () {
+          const mode = window.__XR_STATE__?.mode || "placement";
+          if (mode === "visit") return;
+          const currentRotation = capturedPainting.getAttribute("rotation");
+          const [x, y, z] = parseRot(currentRotation);
+          if (paintingData && paintingData.id === "#cowPainting") {
+            capturedPainting.setAttribute("rotation", {
+              x: x - 30,
+              y: y,
+              z: z,
+            });
+          } else {
+            capturedPainting.setAttribute("rotation", {
+              x: x,
+              y: y,
+              z: z - 30,
+            });
+          }
+        });
+
+        // --- Replace button
+        const replaceBtnInner = document.createElement("a-plane");
+        replaceBtnInner.setAttribute("width", "0.2");
+        replaceBtnInner.setAttribute("height", "0.12");
+        replaceBtnInner.setAttribute("class", "clickable");
+        replaceBtnInner.setAttribute("cursor-clickable", "");
+        replaceBtnInner.setAttribute(
+          "material",
+          "color: #10b981; shader: flat; side: double",
+        );
+        replaceBtnInner.setAttribute("position", "-0.25 0 0.12");
+        rotateContainer.appendChild(replaceBtnInner);
+
+        // Add exchange icon to the replace button
+        const replaceIcon = document.createElement("a-plane");
+        replaceIcon.setAttribute("width", "0.12");
+        replaceIcon.setAttribute("height", "0.12");
+        replaceIcon.setAttribute(
+          "material",
+          "src: media/icons/exchange-line.svg; shader: flat; transparent: true; side: double",
+        );
+        // nudge forward so it isn't occluded by the button plane or painting
+        try {
+          replaceIcon.setAttribute("position", "-0.25 0 0.11");
+          replaceIcon.setAttribute(
+            "visible",
+            window.__XR_STATE__ && window.__XR_STATE__.mode === "placement",
+          );
+        } catch (e) {}
+        // set initial visibility according to current mode
+        try {
+          replaceIcon.setAttribute(
+            "visible",
+            window.__XR_STATE__ && window.__XR_STATE__.mode === "placement",
+          );
+        } catch (e) {}
+        replaceIcon.id = "replaceIconPainting";
+        rotateContainer.appendChild(replaceIcon);
+        // Ensure the icon hides in visit mode like the replace button (bind to container)
+        bindModeVisibility(replaceIcon, infoContainer);
+
+        // Bind visibility on the clickable plane so the whole button hides in visit mode
+        bindModeVisibility(replaceBtnInner, infoContainer);
+
+        replaceBtnInner.addEventListener("mouseenter", function () {
+          hitTestComp.isPointerOverUI = true;
+        });
+        replaceBtnInner.addEventListener("mouseleave", function () {
+          hitTestComp.isPointerOverUI = false;
+        });
+        replaceBtnInner.addEventListener("click", function () {
+          // Mark this placementGroup as pending replacement and remove from scene
+          try {
+            // Find and remove position associated with this placementGroup
+            var idx = -1;
+            var pos = placementGroup.object3D.position;
+            for (var k = 0; k < hitTestComp.placedPositions.length; k++) {
+              if (hitTestComp.placedPositions[k].distanceTo(pos) < 0.01) {
+                idx = k;
+                break;
+              }
+            }
+            if (idx >= 0) hitTestComp.placedPositions.splice(idx, 1);
+            // hide the group instead of removing it from the DOM so GLTF components stay initialized
+            try {
+              placementGroup.setAttribute("visible", false);
+            } catch (e) {}
+            if (hitTestComp.placed > 0) hitTestComp.placed--;
+            hitTestComp.replacePending = {
+              group: placementGroup,
+              type: "painting",
+              id: paintingData.id,
+            };
+            showARMessage(
+              hitTestComp.sceneEl,
+              "Picked for move — select new location",
+              "#ffff00",
+            );
+            // ensure we're in placement mode
+            if (window.__XR_STATE__) {
+              window.__XR_STATE__.mode = "placement";
+              document.dispatchEvent(
+                new CustomEvent("xr-mode-changed", {
+                  detail: { mode: "placement" },
+                }),
+              );
+            }
+          } catch (err) {
+            console.error(err);
+            showARMessage(hitTestComp.sceneEl, "Replace error", "#ff0000");
+          }
+        });
       } else {
-        // --- FLOOR: place a table + sculpture ---
+        // --- FLOOR
         const table = document.createElement("a-entity");
         table.setAttribute("gltf-model", "#table");
         table.setAttribute("scale", "0.7 0.7 0.7");
         placementGroup.appendChild(table);
 
-        const selectedSculptureData =
-          this.sculpturesData[this.currentSculptureIndex];
-        const selectedSculpture = selectedSculptureData.id;
-        this.currentSculptureIndex++;
+        // Check menu selection first
+        const sel = window.__XR_STATE__?.selected;
+        let selectedSculpture;
+        if (sel && sel.type === "sculpture") {
+          const sdata = this.sculpturesData.find((s) => s.id === sel.id);
+          if (!sdata) {
+            showARMessage(
+              this.sceneEl,
+              "Selected sculpture not available",
+              "#ff0000",
+            );
+            this.isPlacing = false;
+            return;
+          }
+          selectedSculpture = sdata.id;
+        } else {
+          const selectedSculptureData =
+            this.sculpturesData[this.currentSculptureIndex];
+          selectedSculpture = selectedSculptureData.id;
+          this.currentSculptureIndex++;
+        }
 
         const sculptureWrapper = document.createElement("a-entity");
         sculptureWrapper.setAttribute("scale", "0.4 0.4 0.4");
@@ -550,6 +654,8 @@ ${sculptureInfo.facts}
         // Rotate button
         const rotateBubble = document.createElement("a-entity");
         rotateBubble.setAttribute("rotation", "0 180 0");
+        // move sculpture buttons further away from the sculpture
+        rotateBubble.setAttribute("position", "-0.5 0.3 0.01");
 
         const rotateBtnBorder = document.createElement("a-plane");
         rotateBtnBorder.setAttribute("width", "0.2");
@@ -560,7 +666,7 @@ ${sculptureInfo.facts}
           "material",
           "color: #667eea; shader: flat; side: double",
         );
-        rotateBtnBorder.setAttribute("position", "0 0 -0.001");
+        rotateBtnBorder.setAttribute("position", "-0.3 0 -0.001");
         rotateBubble.appendChild(rotateBtnBorder);
 
         const iconPlane2 = document.createElement("a-plane");
@@ -570,37 +676,69 @@ ${sculptureInfo.facts}
           "material",
           "src: media/icons/reset-right-line.svg; shader: flat; transparent: true; side: double",
         );
-        iconPlane2.setAttribute("position", "0 0 0.01");
+        iconPlane2.setAttribute("position", "-0.3 0 0.01");
         rotateBubble.appendChild(iconPlane2);
+
+        // Rotate-left button (opposite direction) for sculptures
+        const rotateBtnBorderLeft = document.createElement("a-plane");
+        rotateBtnBorderLeft.setAttribute("width", "0.15");
+        rotateBtnBorderLeft.setAttribute("height", "0.12");
+        rotateBtnBorderLeft.setAttribute("class", "clickable");
+        rotateBtnBorderLeft.setAttribute("cursor-clickable", "");
+        rotateBtnBorderLeft.setAttribute(
+          "material",
+          "color: #667eea; shader: flat; side: double",
+        );
+        rotateBtnBorderLeft.setAttribute("position", "-0.08 0 -0.001");
+        rotateBubble.appendChild(rotateBtnBorderLeft);
+
+        const iconPlane2Left = document.createElement("a-plane");
+        iconPlane2Left.setAttribute("width", "0.1");
+        iconPlane2Left.setAttribute("height", "0.1");
+        iconPlane2Left.setAttribute(
+          "material",
+          "src: media/icons/reset-left-line.svg; shader: flat; transparent: true; side: double",
+        );
+        iconPlane2Left.setAttribute("position", "-0.08 0 0.01");
+        rotateBubble.appendChild(iconPlane2Left);
+
+        // (binds moved below after bubbleContainer is created)
 
         placementGroup.appendChild(rotateBubble);
 
-        // Info text for sculptures (visit mode)
+        // Info text for sculptures (visit mode) wrapped in a container with background
         const bubbleText = document.createElement("a-text");
         bubbleText.setAttribute("value", "Info");
         bubbleText.setAttribute("align", "center");
         bubbleText.setAttribute("width", "0.6");
         bubbleText.setAttribute("color", "#ffffff");
-        bubbleText.setAttribute("position", "0 0 0.01");
-        rotateBubble.appendChild(bubbleText);
+        bubbleText.setAttribute("position", "-0.8 0 0.15");
+
+        const bubbleContainer = document.createElement("a-entity");
+        // Position the info container so its world X aligns with the sculpture platform (platform X = 0).
+        // rotateBubble is at X = -0.5, so offset bubbleContainer by +0.5 to land at world X = 0.
+        bubbleContainer.setAttribute("position", "0.5 0 0");
+        // cancel parent rotation so sculpture text stays upright
+        bubbleContainer.setAttribute("rotation", "0 180 0");
+        // ensure the info always faces the camera and remains level
+        bubbleContainer.setAttribute("billboard", "");
+        // simple text-only info button (no background)
+        bubbleContainer.appendChild(bubbleText);
+
+        rotateBubble.appendChild(bubbleContainer);
+
+        // Bind left-rotate icon/button now that bubbleContainer exists
+        try {
+          bindModeVisibility(iconPlane2Left, bubbleContainer);
+          bindModeVisibility(rotateBtnBorderLeft, bubbleContainer);
+        } catch (e) {}
 
         var hitTestComp2 = this;
         var capturedSculptureWrapper = sculptureWrapper;
         var capturedSculptureId = selectedSculpture;
 
-        // Initialize visibility based on current mode
-        (function updateSculptureButtonVisibility() {
-          const mode = window.__XR_STATE__?.mode || "placement";
-          iconPlane2.setAttribute("visible", mode === "placement");
-          bubbleText.setAttribute("visible", mode === "visit");
-        })();
-
-        document.addEventListener("xr-mode-changed", function (ev) {
-          const mode =
-            ev?.detail?.mode || window.__XR_STATE__?.mode || "placement";
-          iconPlane2.setAttribute("visible", mode === "placement");
-          bubbleText.setAttribute("visible", mode === "visit");
-        });
+        // Bind mode visibility for these two elements (bind to container so billboard can be applied)
+        bindModeVisibility(iconPlane2, bubbleContainer);
 
         rotateBtnBorder.addEventListener("mouseenter", function () {
           hitTestComp2.isPointerOverUI = true;
@@ -611,20 +749,14 @@ ${sculptureInfo.facts}
         rotateBtnBorder.addEventListener("click", function () {
           const mode = window.__XR_STATE__?.mode || "placement";
 
-          function parseRot(rot) {
-            if (typeof rot === "string") {
-              const parts = rot.split(" ").map(Number);
-              return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
-            }
-            if (rot && typeof rot === "object") {
-              return [rot.x || 0, rot.y || 0, rot.z || 0];
-            }
-            return [0, 0, 0];
-          }
-
           if (mode === "visit") {
-            hitTestComp2.playInfoSound();
-            hitTestComp2.showInfoPanel(capturedSculptureId);
+            playInfoSound();
+            showInfoPanel(
+              hitTestComp2.sceneEl,
+              hitTestComp2.sculpturesData,
+              hitTestComp2.paintingsData,
+              capturedSculptureId,
+            );
             return;
           }
 
@@ -637,6 +769,109 @@ ${sculptureInfo.facts}
             y: y + 30,
             z: z,
           });
+        });
+
+        // Left-rotate handler for sculptures
+        rotateBtnBorderLeft.addEventListener("mouseenter", function () {
+          hitTestComp2.isPointerOverUI = true;
+        });
+        rotateBtnBorderLeft.addEventListener("mouseleave", function () {
+          hitTestComp2.isPointerOverUI = false;
+        });
+        rotateBtnBorderLeft.addEventListener("click", function () {
+          const mode = window.__XR_STATE__?.mode || "placement";
+          if (mode === "visit") return;
+          const currentRotation =
+            capturedSculptureWrapper.getAttribute("rotation");
+          const [x, y, z] = parseRot(currentRotation);
+          capturedSculptureWrapper.setAttribute("rotation", {
+            x: x,
+            y: y - 30,
+            z: z,
+          });
+        });
+
+        // --- Replace button for sculptures
+        const replaceBtnBorder = document.createElement("a-plane");
+        replaceBtnBorder.setAttribute("width", "0.2");
+        replaceBtnBorder.setAttribute("height", "0.12");
+        replaceBtnBorder.setAttribute("class", "clickable");
+        replaceBtnBorder.setAttribute("cursor-clickable", "");
+        replaceBtnBorder.setAttribute(
+          "material",
+          "color: #10b981; shader: flat; side: double",
+        );
+        replaceBtnBorder.setAttribute("position", "-0.55 0 -0.001");
+        rotateBubble.appendChild(replaceBtnBorder);
+
+        // Exchange icon for sculpture replace button
+        const replaceIcon2 = document.createElement("a-plane");
+        replaceIcon2.setAttribute("width", "0.12");
+        replaceIcon2.setAttribute("height", "0.12");
+        replaceIcon2.setAttribute(
+          "material",
+          "src: media/icons/exchange-line.svg; shader: flat; transparent: true; side: double",
+        );
+        replaceIcon2.setAttribute("position", "-0.55 0 0.02");
+        // set initial visibility according to current mode
+        try {
+          replaceIcon2.setAttribute(
+            "visible",
+            window.__XR_STATE__ && window.__XR_STATE__.mode === "placement",
+          );
+        } catch (e) {}
+        rotateBubble.appendChild(replaceIcon2);
+
+        // Bind sculpture replace icon visibility to visit/placement mode (bind to container)
+        bindModeVisibility(replaceIcon2, bubbleContainer);
+
+        // don't add a separate icon image; bind the clickable border so the whole
+        // button hides in visit mode (bind to container)
+        bindModeVisibility(replaceBtnBorder, bubbleContainer);
+
+        replaceBtnBorder.addEventListener("mouseenter", function () {
+          hitTestComp2.isPointerOverUI = true;
+        });
+        replaceBtnBorder.addEventListener("mouseleave", function () {
+          hitTestComp2.isPointerOverUI = false;
+        });
+        replaceBtnBorder.addEventListener("click", function () {
+          try {
+            var idx2 = -1;
+            var pos2 = placementGroup.object3D.position;
+            for (var kk = 0; kk < hitTestComp2.placedPositions.length; kk++) {
+              if (hitTestComp2.placedPositions[kk].distanceTo(pos2) < 0.01) {
+                idx2 = kk;
+                break;
+              }
+            }
+            if (idx2 >= 0) hitTestComp2.placedPositions.splice(idx2, 1);
+            try {
+              placementGroup.setAttribute("visible", false);
+            } catch (e) {}
+            if (hitTestComp2.placed > 0) hitTestComp2.placed--;
+            hitTestComp2.replacePending = {
+              group: placementGroup,
+              type: "sculpture",
+              id: capturedSculptureId,
+            };
+            showARMessage(
+              hitTestComp2.sceneEl,
+              "Picked for move — select new location",
+              "#ffff00",
+            );
+            if (window.__XR_STATE__) {
+              window.__XR_STATE__.mode = "placement";
+              document.dispatchEvent(
+                new CustomEvent("xr-mode-changed", {
+                  detail: { mode: "placement" },
+                }),
+              );
+            }
+          } catch (err2) {
+            console.error(err2);
+            showARMessage(hitTestComp2.sceneEl, "Replace error", "#ff0000");
+          }
         });
 
         table.addEventListener("model-loaded", function () {
@@ -667,12 +902,12 @@ ${sculptureInfo.facts}
             sculptureWrapper.setAttribute("position", `0 ${sculptureHeight} 0`);
             rotateBubble.setAttribute(
               "position",
-              `0.25 ${sculptureHeight + 0.2} 0`,
+              `0.23 ${sculptureHeight + 0.2} 0`,
             );
           } else {
             sculptureWrapper.setAttribute("position", "0 1 0");
             platform.setAttribute("position", "0 1 0");
-            rotateBubble.setAttribute("position", "0.25 1.2 0");
+            rotateBubble.setAttribute("position", "0.23 1.2 0");
           }
         });
       }
@@ -684,15 +919,25 @@ ${sculptureInfo.facts}
 
       if (this.placed >= this.totalItems) {
         this.reticleEl.setAttribute("visible", false);
-        window.__XR_STATE__.mode = "visit";
-        this.showARMessage(
+        if (window.__XR_STATE__) {
+          window.__XR_STATE__.mode = "visit";
+          document.dispatchEvent(
+            new CustomEvent("xr-mode-changed", { detail: { mode: "visit" } }),
+          );
+        }
+        showARMessage(
+          this.sceneEl,
           "All Exhibits Placed! Enjoy the exhibit 🎨",
           "#00ff00",
         );
       }
     } catch (e) {
       this.isPlacing = false;
-      this.showARMessage("Placement error: " + (e?.message || e), "#ff0000");
+      showARMessage(
+        this.sceneEl,
+        "Placement error: " + (e?.message || e),
+        "#ff0000",
+      );
       console.error(e);
       return;
     }
@@ -758,17 +1003,6 @@ ${sculptureInfo.facts}
         break;
       }
     }
-
-    // Update reticle color:
-    var color;
-    if (isTooClose) {
-      color = "#ff0000";
-    } else if (isWall) {
-      color = "#00ffff";
-    } else {
-      color = "#00ff00";
-    }
-    this.reticleEl.setAttribute("material", "color", color);
 
     this.isWall = isWall;
     this.latestHitMatrix = hitMatrix;

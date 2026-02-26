@@ -1,0 +1,78 @@
+// Exhibit data extracted from hit-test.js
+export const sculpturesData = [
+  {
+    id: "#chickenLessons",
+    name: "Chicken Lessons",
+    author: "Unknown Artist",
+    year: "2024",
+    description: "A fascinating sculpture depicting the wisdom of nature",
+    facts: "This piece explores the connection between animals and education",
+  },
+  {
+    id: "#imposter",
+    name: "Imposter",
+    author: "Digital Creator",
+    year: "2023",
+    description: "A modern interpretation of identity and perception",
+    facts: "Inspired by contemporary social phenomena and digital culture",
+  },
+  {
+    id: "#plant",
+    name: "Plant",
+    author: "Nature Sculptor",
+    year: "2024",
+    description: "An organic form celebrating natural beauty",
+    facts:
+      "Created to remind viewers of the importance of environmental conservation",
+  },
+  {
+    id: "#lava-three",
+    name: "Lava Three",
+    author: "Fire Artist",
+    year: "2022",
+    description: "A dynamic piece representing volcanic energy",
+    facts: "The design was inspired by actual lava flow patterns",
+  },
+];
+
+export const paintingsData = [
+  {
+    id: "#monaLisa",
+    name: "Mona Lisa",
+    author: "Leonardo da Vinci",
+    year: "1503",
+    description: "One of the most famous portraits in the world",
+    facts: "The painting is kept in the Louvre Museum in Paris",
+    scale: "0.05 0.05 0.05",
+    rotation: "0 180 0",
+  },
+  {
+    id: "#cowPainting",
+    name: "Cow Painting",
+    author: "Unknown Artist",
+    year: "2024",
+    description: "A contemporary take on pastoral art",
+    facts: "Inspired by the Dutch Golden Age tradition of animal painting",
+    scale: "0.6 0.6 0.6",
+    rotation: "0 270 0",
+  },
+  {
+    id: "#ImpressionistPainting1",
+    name: "Impressionist Painting 1",
+    author: "Unknown Artist",
+    year: "2024",
+    description: "An impressionist interpretation of a table setting",
+    facts: "Inspired by the French Impressionist movement of the 19th century",
+    scale: "0.1 0.1 0.1",
+  },
+  {
+    id: "#ImpressionistPainting2",
+    name: "Impressionist Painting 2",
+    author: "Unknown Artist",
+    year: "2024",
+    description: "An impressionist interpretation of a table setting",
+    facts: "Inspired by the French Impressionist movement of the 19th century",
+    scale: "0.6 0.6 0.6",
+    rotation: "0 180 -90",
+  },
+];
