@@ -494,7 +494,9 @@ AFRAME.registerComponent("ar-hit-test", {
         rotateBtnInnerLeft.addEventListener("click", function () {
           const mode = window.__XR_STATE__?.mode || "placement";
           if (mode === "visit") return;
+          // Rotate in the opposite direction of the right rotate button
           const currentRotation = capturedPainting.getAttribute("rotation");
+          // Transform rotation to a consistent format and parse out x/y/z as numbers
           const [x, y, z] = parseRot(currentRotation);
           if (paintingData && paintingData.id === "#cowPainting") {
             capturedPainting.setAttribute("rotation", {
@@ -944,37 +946,31 @@ AFRAME.registerComponent("ar-hit-test", {
     }, 500);
   },
 
-  onXRFrame(t, frame) {
+  onXRFrame(frame) {
     frame.session.requestAnimationFrame(this.onXRFrame);
-
     if (!this.hitTestSource || !this.refSpace) return;
-
     const mode = window.__XR_STATE__?.mode || "placement";
     if (mode === "visit") {
       this.reticleEl.setAttribute("visible", false);
       return;
     }
-
     if (this.placed >= this.totalItems) {
       this.reticleEl.setAttribute("visible", false);
       return;
     }
-
-    const results = frame.getHitTestResults(this.hitTestSource);
+    const results = frame.getHitTestResults(this.hitTestSource); // WebXR scans the real world
     if (!results.length) {
       this.reticleEl.setAttribute("visible", false);
       this.latestHitMatrix = null;
       return;
     }
-
-    const pose = results[0].getPose(this.refSpace);
+    const pose = results[0].getPose(this.refSpace); // Use the closest hit test result
     if (!pose) {
       this.reticleEl.setAttribute("visible", false);
       return;
     }
-
-    const hitMatrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
-    const normalY = hitMatrix.elements[5];
+    const hitMatrix = new THREE.Matrix4().fromArray(pose.transform.matrix); // Hit matrix transforms
+    const normalY = hitMatrix.elements[5]; // What kind of surface was hit?
 
     // normalY ≈ 1.0 → floor, normalY ≈ 0.0 → wall
     const isWall = Math.abs(normalY) < 0.25;
@@ -994,7 +990,7 @@ AFRAME.registerComponent("ar-hit-test", {
 
     this.isWall = isWall;
     this.latestHitMatrix = hitMatrix;
-    this.reticleObj.matrix.copy(hitMatrix);
+    this.reticleObj.matrix.copy(hitMatrix); // Update reticle position
     this.reticleObj.matrixWorldNeedsUpdate = true;
     this.reticleEl.setAttribute("visible", true);
   },

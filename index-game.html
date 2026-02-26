@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, user-scalable=no"
+    />
+    <title>AR Mini Exhibit (A-Frame)</title>
+
+    <link rel="stylesheet" href="./css/common.css" />
+
+    <!-- A-Frame -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+    <!-- Our components -->
+    <script type="module" src="./js/aframe-components/hit-test.js"></script>
+    <script src="./js/aframe-components/controller-ui.js"></script>
+    <script src="./js/aframe-components/selection-menu.js"></script>
+    <script src="./js/aframe-components/app.js" defer></script>
+  </head>
+
+  <body>
+    <div id="startScreen">
+      <div id="startCard">
+        <h1>🎨 XR Mini Exhibit</h1>
+        <p>
+          Explore artifacts in augmented reality. During the experience, you can
+          move around the exhibit and interact with the objects. You have 2
+          differents modes: visit and edit. In visit mode, you can explore the
+          exhibit and interact with the objects. In edit mode, you can move,
+          rotate and scale the objects to customize your exhibit. To switch
+          between modes, simply press the grip button on your controller. Press
+          START to begin your journey.
+        </p>
+        <button id="startBtn">START AR</button>
+        <div id="startError" class="hidden"></div>
+      </div>
+    </div>
+
+    <!-- Audio elements must be outside a-scene so the browser controls them directly -->
+    <audio
+      id="ambientSound"
+      src="./media/audio/lofi-bg.wav"
+      preload="auto"
+      loop
+      style="display: none"
+    ></audio>
+    <audio
+      id="infoSound"
+      src="./media/audio/blip-sound.wav"
+      preload="auto"
+      style="display: none"
+    ></audio>
+
+    <a-scene
+      vr-mode-ui="enabled: false"
+      renderer="colorManagement: true; alpha: true; antialias: true"
+      webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: anchors, dom-overlay; overlayElement: #arOverlay"
+      ar-hit-test
+    >
+      <a-assets>
+        <a-asset-item
+          id="modelExhibit"
+          src="./media/gltf/sculpture/imposter.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="monaLisa"
+          src="./media/gltf/painting/mona-lisa.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="cowPainting"
+          src="./media/gltf/painting/cow.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="ImpressionistPainting1"
+          src="./media/gltf/painting/impressionisme_table1.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="ImpressionistPainting2"
+          src="./media/gltf/painting/impressionisme_table2.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="chickenLessons"
+          src="./media/gltf/sculpture/chicken_lessons.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="imposter"
+          src="./media/gltf/sculpture/imposter.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="table"
+          src="./media/gltf/elements/Table.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="plant"
+          src="./media/gltf/sculpture/plant.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="lava-three"
+          src="./media/gltf/sculpture/lava-three.glb"
+        ></a-asset-item>
+        <a-asset-item
+          id="modelReticle"
+          src="./media/gltf/reticle/reticle.gltf"
+        ></a-asset-item>
+      </a-assets>
+
+      <a-entity camera position="0 1.6 0"></a-entity>
+
+      <a-entity
+        id="reticle"
+        visible="false"
+        gltf-model="#modelReticle"
+        ar-reticle
+      ></a-entity>
+
+      <a-entity id="exhibitRoot" visible="false"></a-entity>
+
+      <!-- Right controller: trigger=place, grip=toggle menu, A button=switch mode -->
+      <a-entity
+        id="rightHand"
+        oculus-touch-controls="hand: right"
+        laser-controls="hand: right"
+        raycaster="objects: .ui-btn, .clickable; far: 10"
+        cursor="rayOrigin: entity; fuse: false"
+        controller-ui
+      ></a-entity>
+
+      <!-- Left controller: grip=toggle menu only (no placement) -->
+      <a-entity
+        id="leftHand"
+        oculus-touch-controls="hand: left"
+        laser-controls="hand: left"
+        raycaster="objects: .ui-btn, .clickable; far: 10"
+        cursor="rayOrigin: entity; fuse: false"
+        selection-menu
+      ></a-entity>
+    </a-scene>
+  </body>
+</html>

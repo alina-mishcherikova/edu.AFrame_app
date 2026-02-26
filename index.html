@@ -1,141 +1,271 @@
+<!-- index.html -->
 <!doctype html>
-<html lang="uk">
+<html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, user-scalable=no"
-    />
-    <title>AR Mini Exhibit (A-Frame)</title>
-
-    <link rel="stylesheet" href="./css/common.css" />
-
-    <!-- A-Frame -->
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-
-    <!-- Our components -->
-    <script type="module" src="./js/aframe-components/hit-test.js"></script>
-    <script src="./js/aframe-components/controller-ui.js"></script>
-    <script src="./js/aframe-components/selection-menu.js"></script>
-    <script src="./js/aframe-components/app.js" defer></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BetweenWorlds — AR Gallery</title>
+    <link rel="stylesheet" href="css/styles.css" />
   </head>
 
   <body>
-    <div id="startScreen">
-      <div id="startCard">
-        <h1>🎨 XR Mini Exhibit</h1>
-        <p>
-          Explore artifacts in augmented reality. During the experience, you can
-          move around the exhibit and interact with the objects. You have 2
-          differents modes: visit and edit. In visit mode, you can explore the
-          exhibit and interact with the objects. In edit mode, you can move,
-          rotate and scale the objects to customize your exhibit. To switch
-          between modes, simply press the grip button on your controller. Press
-          START to begin your journey.
-        </p>
-        <button id="startBtn">START AR</button>
-        <div id="startError" class="hidden"></div>
-      </div>
+    <div class="page">
+      <header class="header">
+        <div class="container header__inner">
+          <a class="brand" href="#">
+            <span class="brand__dot"></span>
+            <span class="brand__text">BetweenWorlds</span>
+          </a>
+
+          <nav class="nav">
+            <a class="nav__link" href="#home">Home</a>
+            <a class="nav__link" href="#functionality">Functionality</a>
+            <a class="nav__link" href="#versions">Versions</a>
+            <a class="nav__link" href="#try">Try now</a>
+          </nav>
+
+          <a class="btn btn--small" href="#try">Play</a>
+
+          <a href="./index-game.html"
+            ><button
+              class="nav__burger"
+              aria-label="Open menu"
+              aria-expanded="false"
+            ></button
+          ></a>
+        </div>
+      </header>
+
+      <main>
+        <!-- Hero -->
+        <section id="home" class="hero">
+          <div class="container hero__inner">
+            <h1>Transform your space into an AR Gallery</h1>
+            <p class="hero__lead">
+              Place digital sculptures and paintings directly into your physical
+              environment and explore it in visitor mode.
+            </p>
+
+            <div class="hero__actions">
+              <a href="./index-game.html">
+                <button class="pill" type="button">
+                  <span class="pill__icon" aria-hidden="true">⦿</span>
+                  Demo
+                </button>
+              </a>
+            </div>
+
+            <iframe
+              width="560"
+              height="315"
+              src="https://www.youtube.com/embed/OUCICOAnEuU?si=o_Uk2oyrCiN8PWRt"
+              title="YouTube video player"
+              frameborder="0"
+              allow="
+                accelerometer;
+                autoplay;
+                clipboard-write;
+                encrypted-media;
+                gyroscope;
+                picture-in-picture;
+                web-share;
+              "
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </section>
+
+        <!-- Core functionality -->
+        <section id="functionality" class="section">
+          <div class="container">
+            <div class="section__head">
+              <h2>Core functionality</h2>
+              <p class="muted">
+                The main technical features that power the AR exhibition
+                experience.
+              </p>
+            </div>
+
+            <div class="features">
+              <!-- Row 1 -->
+              <article class="feature feature--row">
+                <div class="feature__text">
+                  <h3>Surface detection &amp; object placement</h3>
+                  <p class="muted">
+                    Detect real-world surfaces and place sculptures/paintings
+                    precisely using hit-test and reticle feedback.
+                  </p>
+                </div>
+                <div class="feature__media">
+                  <img
+                    src="./media/images/placement-code.png"
+                    alt="AR placement"
+                    class="feature__media"
+                  />
+                </div>
+              </article>
+
+              <!-- Row 2 (reversed) -->
+              <article class="feature feature--row feature--reverse">
+                <div class="feature__media">
+                  <img
+                    src="./media/images/rotation-code.png"
+                    alt="AR control"
+                    class="feature__media"
+                  />
+                </div>
+                <div class="feature__text">
+                  <h3>Exhibit transformation controls</h3>
+                  <p class="muted">
+                    Rotate, and move objects with intuitive controller
+                    interactions for fast scene customization.
+                  </p>
+                </div>
+              </article>
+
+              <!-- <article class="feature feature--row">
+                <div class="feature__text">
+                  <h3>Selection Menu</h3>
+                  <p class="muted">
+                    Open a selection menu to choose which exhibit to
+                    place. 
+                  </p>
+                </div>
+                <div class="feature__media">
+                  <img
+                    src="./media/images/menu.png"
+                    alt="AR menu"
+                    class="feature__media"
+                  />
+                </div>
+              </article> -->
+
+              <article class="feature feature--row">
+                <div class="feature__text">
+                  <h3>Information System</h3>
+                  <p class="muted">
+                    Inspect exhibits with info boxes and a clean UI layer that
+                    stays readable inside AR passthrough.
+                  </p>
+                </div>
+                <div class="feature__media">
+                  <img
+                    src="./media/images/info-code.png"
+                    alt="AR info system"
+                    class="feature__media"
+                  />
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- Versions -->
+        <section id="versions" class="section section--soft">
+          <div class="container">
+            <div class="section__head section__head--center">
+              <h2>Versions</h2>
+              <p class="muted">
+                Each version introduces new interaction logic.
+              </p>
+            </div>
+
+            <div class="versions">
+              <article class="versions__card">
+                <h4>Between worlds V1</h4>
+                <ul>
+                  <li>Users can place up to four sculptures.</li>
+                  <li>Each sculpture includes an interactive info box.</li>
+                  <li>Visit mode prevents further placement.</li>
+                </ul>
+              </article>
+
+              <article class="versions__card">
+                <h4>Between worlds V2</h4>
+                <ul>
+                  <li>
+                    Interactive menu for selecting exhibits before placement.
+                  </li>
+                  <li>Support for placing paintings on vertical surfaces.</li>
+                  <li>Rotation controls added.</li>
+                </ul>
+              </article>
+
+              <article class="versions__card">
+                <h4>Between worlds V2.2</h4>
+                <ul>
+                  <li>Real-world occlusion.</li>
+                  <li>
+                    Digital objects can be partially hidden by physical
+                    elements.
+                  </li>
+                </ul>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- Try -->
+        <section id="try" class="section">
+          <div class="container try">
+            <div class="section__head section__head--center">
+              <h2>Try the experience now</h2>
+              <p class="muted">
+                Launch the application and begin placing digital exhibits
+                directly into your room. Curate your personal exhibition, switch
+                to visitor mode, and explore the sculptures as if you were
+                walking through a real gallery.
+              </p>
+              <a class="btn" href="./index-game.html">Get started</a>
+            </div>
+            <div class="try__gallery">
+              <img
+                src="./media/images/product.png"
+                alt="Try the experience"
+                class="feature__media img"
+              />
+              <img
+                src="./media/images/control.png"
+                alt="Control the exhibits"
+                class="feature__media img"
+              />
+              <img
+                src="./media/images/info.png"
+                alt="View exhibit information"
+                class="feature__media img"
+              />
+              <img
+                src="./media/images/menu.png"
+                alt="Navigate the interface"
+                class="feature__media img"
+              />
+              <img
+                src="./media/images/placement.png"
+                alt="Place exhibits in your environment"
+                class="feature__media img"
+              />
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div class="container footer__inner">
+          <div class="footer__brand">BetweenWorlds</div>
+          <div class="footer__copy">Between worlds © 2026</div>
+        </div>
+      </footer>
     </div>
 
-    <!-- Audio elements must be outside a-scene so the browser controls them directly -->
-    <audio
-      id="ambientSound"
-      src="./media/audio/lofi-bg.wav"
-      preload="auto"
-      loop
-      style="display: none"
-    ></audio>
-    <audio
-      id="infoSound"
-      src="./media/audio/blip-sound.wav"
-      preload="auto"
-      style="display: none"
-    ></audio>
-
-    <a-scene
-      vr-mode-ui="enabled: false"
-      renderer="colorManagement: true; alpha: true; antialias: true"
-      webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: anchors, dom-overlay; overlayElement: #arOverlay"
-      ar-hit-test
-    >
-      <a-assets>
-        <a-asset-item
-          id="modelExhibit"
-          src="./media/gltf/sculpture/imposter.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="monaLisa"
-          src="./media/gltf/painting/mona-lisa.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="cowPainting"
-          src="./media/gltf/painting/cow.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="ImpressionistPainting1"
-          src="./media/gltf/painting/impressionisme_table1.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="ImpressionistPainting2"
-          src="./media/gltf/painting/impressionisme_table2.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="chickenLessons"
-          src="./media/gltf/sculpture/chicken_lessons.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="imposter"
-          src="./media/gltf/sculpture/imposter.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="table"
-          src="./media/gltf/elements/Table.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="plant"
-          src="./media/gltf/sculpture/plant.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="lava-three"
-          src="./media/gltf/sculpture/lava-three.glb"
-        ></a-asset-item>
-        <a-asset-item
-          id="modelReticle"
-          src="./media/gltf/reticle/reticle.gltf"
-        ></a-asset-item>
-      </a-assets>
-
-      <a-entity camera position="0 1.6 0"></a-entity>
-
-      <a-entity
-        id="reticle"
-        visible="false"
-        gltf-model="#modelReticle"
-        ar-reticle
-      ></a-entity>
-
-      <a-entity id="exhibitRoot" visible="false"></a-entity>
-
-      <!-- Right controller: trigger=place, grip=toggle menu, A button=switch mode -->
-      <a-entity
-        id="rightHand"
-        oculus-touch-controls="hand: right"
-        laser-controls="hand: right"
-        raycaster="objects: .ui-btn, .clickable; far: 10"
-        cursor="rayOrigin: entity; fuse: false"
-        controller-ui
-      ></a-entity>
-
-      <!-- Left controller: grip=toggle menu only (no placement) -->
-      <a-entity
-        id="leftHand"
-        oculus-touch-controls="hand: left"
-        laser-controls="hand: left"
-        raycaster="objects: .ui-btn, .clickable; far: 10"
-        cursor="rayOrigin: entity; fuse: false"
-        selection-menu
-      ></a-entity>
-    </a-scene>
+    <script>
+      // Small mobile nav toggle (no frameworks)
+      const burger = document.querySelector(".nav__burger");
+      const nav = document.querySelector(".nav");
+      burger.addEventListener("click", () => {
+        const open = nav.classList.toggle("nav--open");
+        burger.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    </script>
   </body>
 </html>
