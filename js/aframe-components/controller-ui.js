@@ -22,15 +22,16 @@ AFRAME.registerComponent("controller-ui", {
     }
 
     // Use button A/X for mode switching instead of grip (grip is used by selection-menu)
-    this.el.addEventListener("abuttondown", () => {
-      this.cycleMode();
+    var self = this;
+    self.el.addEventListener("abuttondown", function () {
+      self.cycleMode();
     });
-    this.el.addEventListener("xbuttondown", () => {
-      this.cycleMode();
+    self.el.addEventListener("xbuttondown", function () {
+      self.cycleMode();
     });
     // Also allow grip on the right controller to toggle modes (left grip is used for menu)
-    this.el.addEventListener("gripdown", () => {
-      this.cycleMode();
+    self.el.addEventListener("gripdown", function () {
+      self.cycleMode();
     });
   },
 
@@ -149,13 +150,14 @@ AFRAME.registerComponent("controller-ui", {
     txt.setAttribute("color", color);
     txt.setAttribute("position", "0 0 0.02");
     txt.setAttribute("wrap-count", "24");
-    txt.setAttribute("value", modeText);
     msg.appendChild(txt);
 
     sceneEl.appendChild(msg);
 
-    setTimeout(() => {
-      if (msg && msg.parentNode) msg.parentNode.removeChild(msg);
+    setTimeout(function () {
+      if (msg && msg.parentNode) {
+        msg.parentNode.removeChild(msg);
+      }
     }, 2000);
   },
 });

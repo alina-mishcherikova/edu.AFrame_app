@@ -120,7 +120,9 @@ export function playInfoSound() {
   const snd = document.getElementById("infoSound");
   if (!snd) return;
   snd.currentTime = 0;
-  snd.play().catch((err) => console.warn("Info sound blocked:", err));
+  snd.play().catch(function (err) {
+    console.warn("Info sound blocked:", err);
+  });
 }
 
 // parseRot: take a rotation value or an object and always return a numeric array [x, y, z]. Missing or invalid values become 0.
@@ -189,14 +191,8 @@ export function bindModeVisibility(iconEl, visitEl) {
     if (visitEl && visitEl.setAttribute) {
       if (mode === "visit") {
         visitEl.setAttribute("visible", true);
-        try {
-          visitEl.setAttribute("billboard", "");
-        } catch (e) {}
       } else {
         visitEl.setAttribute("visible", false);
-        try {
-          visitEl.removeAttribute("billboard");
-        } catch (e) {}
       }
     }
   }

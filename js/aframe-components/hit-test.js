@@ -61,8 +61,6 @@ if (AFRAME.components["ar-hit-test"]) {
 }
 
 AFRAME.registerComponent("ar-hit-test", {
-  schema: {},
-
   init() {
     // load exhibit data from module imports
     this.sculpturesData = sculpturesData;
@@ -99,7 +97,9 @@ AFRAME.registerComponent("ar-hit-test", {
     for (let i = 0; i < 10; i++) {
       session = this.sceneEl.renderer?.xr?.getSession?.();
       if (session) break;
-      await new Promise((r) => setTimeout(r, 50));
+      await new Promise(function (r) {
+        setTimeout(r, 50);
+      });
     }
     if (!session) {
       showARMessage(this.sceneEl, "XR session not found", "#ff0000");
@@ -169,23 +169,21 @@ AFRAME.registerComponent("ar-hit-test", {
       );
 
       // Prevent placing sculptures on walls and paintings on the floor
-      if (this.replacePending) {
-        if (this.replacePending.type === "sculpture" && this.isWall) {
-          showARMessage(
-            this.sceneEl,
-            "Cannot place sculpture on a wall",
-            "#ffff00",
-          );
-          return;
-        }
-        if (this.replacePending.type === "painting" && !this.isWall) {
-          showARMessage(
-            this.sceneEl,
-            "Cannot place painting on the floor",
-            "#ffff00",
-          );
-          return;
-        }
+      if (this.replacePending.type === "sculpture" && this.isWall) {
+        showARMessage(
+          this.sceneEl,
+          "Cannot place sculpture on a wall",
+          "#ffff00",
+        );
+        return;
+      }
+      if (this.replacePending.type === "painting" && !this.isWall) {
+        showARMessage(
+          this.sceneEl,
+          "Cannot place painting on the floor",
+          "#ffff00",
+        );
+        return;
       }
 
       // ensure not too close to other items
@@ -327,7 +325,12 @@ AFRAME.registerComponent("ar-hit-test", {
         const selected = window.__XR_STATE__?.selected;
         let paintingData = null;
         if (selected && selected.type === "painting") {
-          paintingData = this.paintingsData.find((p) => p.id === selected.id);
+          for (var pi = 0; pi < this.paintingsData.length; pi++) {
+            if (this.paintingsData[pi].id === selected.id) {
+              paintingData = this.paintingsData[pi];
+              break;
+            }
+          }
           if (!paintingData) {
             showARMessage(
               this.sceneEl,
@@ -416,26 +419,23 @@ AFRAME.registerComponent("ar-hit-test", {
 
         // (bindings moved after infoContainer is created)
 
-        const infoText = document.createElement("a-text");
-        infoText.setAttribute("value", "Info");
-        infoText.setAttribute("width", "0.6");
-        infoText.setAttribute("color", "#ffffff");
-        infoText.setAttribute("position", "0 0 0.03");
+        // info icon plane (same structure as rotate icons)
+        const infoIcon = document.createElement("a-plane");
+        infoIcon.setAttribute("width", "0.1");
+        infoIcon.setAttribute("height", "0.1");
+        infoIcon.setAttribute(
+          "material",
+          "src: media/icons/information-line.svg; shader: flat; transparent: true; side: double",
+        );
+        infoIcon.setAttribute("position", "0 0 -0.01");
 
-        // container with background so text is always visible in visit mode
         const infoContainer = document.createElement("a-entity");
-        // Position the info container so its world X aligns with the painting plane (painting X = 0).
-        // rotateContainer is at X = 0.6, so offset by -0.6 to land at world X = 0.
-        infoContainer.setAttribute("position", "0 0 0");
-        // cancel parent rotation so text stays upright
+        infoContainer.setAttribute("position", "0.6 0.15 0");
         infoContainer.setAttribute("rotation", "0 180 0");
-        // ensure the info always faces the camera and remains level
-        infoContainer.setAttribute("billboard", "");
-        // simple text-only info button (no background)
-        infoContainer.appendChild(infoText);
+        infoContainer.appendChild(infoIcon);
 
-        rotateContainer.appendChild(infoContainer);
         placementGroup.appendChild(rotateContainer);
+        placementGroup.appendChild(infoContainer);
 
         var hitTestComp = this;
         var capturedPainting = painting;
@@ -540,13 +540,6 @@ AFRAME.registerComponent("ar-hit-test", {
             window.__XR_STATE__ && window.__XR_STATE__.mode === "placement",
           );
         } catch (e) {}
-        // set initial visibility according to current mode
-        try {
-          replaceIcon.setAttribute(
-            "visible",
-            window.__XR_STATE__ && window.__XR_STATE__.mode === "placement",
-          );
-        } catch (e) {}
         replaceIcon.id = "replaceIconPainting";
         rotateContainer.appendChild(replaceIcon);
         // Ensure the icon hides in visit mode like the replace button (bind to container)
@@ -614,7 +607,13 @@ AFRAME.registerComponent("ar-hit-test", {
         const sel = window.__XR_STATE__?.selected;
         let selectedSculpture;
         if (sel && sel.type === "sculpture") {
-          const sdata = this.sculpturesData.find((s) => s.id === sel.id);
+          var sdata = null;
+          for (var si = 0; si < this.sculpturesData.length; si++) {
+            if (this.sculpturesData[si].id === sel.id) {
+              sdata = this.sculpturesData[si];
+              break;
+            }
+          }
           if (!sdata) {
             showARMessage(
               this.sceneEl,
@@ -706,24 +705,21 @@ AFRAME.registerComponent("ar-hit-test", {
 
         placementGroup.appendChild(rotateBubble);
 
-        // Info text for sculptures (visit mode) wrapped in a container with background
-        const bubbleText = document.createElement("a-text");
-        bubbleText.setAttribute("value", "Info");
-        bubbleText.setAttribute("align", "center");
-        bubbleText.setAttribute("width", "0.6");
-        bubbleText.setAttribute("color", "#ffffff");
-        bubbleText.setAttribute("position", "-0.8 0 0.15");
+        // info icon plane (same structure as rotate icons)
+        const bubbleIcon = document.createElement("a-plane");
+        bubbleIcon.setAttribute("width", "0.1");
+        bubbleIcon.setAttribute("height", "0.1");
+        bubbleIcon.setAttribute(
+          "material",
+          "src: media/icons/information-line.svg; shader: flat; transparent: true; side: double",
+        );
+        bubbleIcon.setAttribute("position", "0.8 0 -0.01");
 
         const bubbleContainer = document.createElement("a-entity");
-        // Position the info container so its world X aligns with the sculpture platform (platform X = 0).
-        // rotateBubble is at X = -0.5, so offset bubbleContainer by +0.5 to land at world X = 0.
         bubbleContainer.setAttribute("position", "0.5 0 0");
-        // cancel parent rotation so sculpture text stays upright
+        // cancel parent rotation so sculpture icon stays upright
         bubbleContainer.setAttribute("rotation", "0 180 0");
-        // ensure the info always faces the camera and remains level
-        bubbleContainer.setAttribute("billboard", "");
-        // simple text-only info button (no background)
-        bubbleContainer.appendChild(bubbleText);
+        bubbleContainer.appendChild(bubbleIcon);
 
         rotateBubble.appendChild(bubbleContainer);
 
@@ -942,8 +938,9 @@ AFRAME.registerComponent("ar-hit-test", {
       return;
     }
 
-    setTimeout(() => {
-      this.isPlacing = false;
+    var selfComp = this;
+    setTimeout(function () {
+      selfComp.isPlacing = false;
     }, 500);
   },
 
@@ -993,15 +990,6 @@ AFRAME.registerComponent("ar-hit-test", {
     if (camera && position.distanceTo(camera.position) < 0.3) {
       this.reticleEl.setAttribute("visible", false);
       return;
-    }
-
-    // Check distance to existing placed items
-    var isTooClose = false;
-    for (var i = 0; i < this.placedPositions.length; i++) {
-      if (position.distanceTo(this.placedPositions[i]) < 0.6) {
-        isTooClose = true;
-        break;
-      }
     }
 
     this.isWall = isWall;

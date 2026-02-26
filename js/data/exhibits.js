@@ -7,6 +7,8 @@ export const sculpturesData = [
     year: "2024",
     description: "A fascinating sculpture depicting the wisdom of nature",
     facts: "This piece explores the connection between animals and education",
+    thumbnailScale: "0.025 0.025 0.025",
+    thumbnailRotation: "0 135 0",
   },
   {
     id: "#imposter",
@@ -15,6 +17,8 @@ export const sculpturesData = [
     year: "2023",
     description: "A modern interpretation of identity and perception",
     facts: "Inspired by contemporary social phenomena and digital culture",
+    thumbnailScale: "0.025 0.025 0.025",
+    thumbnailRotation: "0 135 0",
   },
   {
     id: "#plant",
@@ -24,6 +28,8 @@ export const sculpturesData = [
     description: "An organic form celebrating natural beauty",
     facts:
       "Created to remind viewers of the importance of environmental conservation",
+    thumbnailScale: "0.025 0.025 0.025",
+    thumbnailRotation: "0 135 0",
   },
   {
     id: "#lava-three",
@@ -32,6 +38,8 @@ export const sculpturesData = [
     year: "2022",
     description: "A dynamic piece representing volcanic energy",
     facts: "The design was inspired by actual lava flow patterns",
+    thumbnailScale: "0.025 0.025 0.025",
+    thumbnailRotation: "0 135 0",
   },
 ];
 
@@ -45,6 +53,8 @@ export const paintingsData = [
     facts: "The painting is kept in the Louvre Museum in Paris",
     scale: "0.05 0.05 0.05",
     rotation: "0 180 0",
+    thumbnailScale: "0.003 0.003 0.003",
+    thumbnailRotation: "0 180 0",
   },
   {
     id: "#cowPainting",
@@ -55,6 +65,8 @@ export const paintingsData = [
     facts: "Inspired by the Dutch Golden Age tradition of animal painting",
     scale: "0.6 0.6 0.6",
     rotation: "0 270 0",
+    thumbnailScale: "0.04 0.04 0.04",
+    thumbnailRotation: "0 270 0",
   },
   {
     id: "#ImpressionistPainting1",
@@ -64,6 +76,8 @@ export const paintingsData = [
     description: "An impressionist interpretation of a table setting",
     facts: "Inspired by the French Impressionist movement of the 19th century",
     scale: "0.1 0.1 0.1",
+    thumbnailScale: "0.006 0.006 0.006",
+    thumbnailRotation: "0 180 0",
   },
   {
     id: "#ImpressionistPainting2",
@@ -74,5 +88,7 @@ export const paintingsData = [
     facts: "Inspired by the French Impressionist movement of the 19th century",
     scale: "0.6 0.6 0.6",
     rotation: "0 180 -90",
+    thumbnailScale: "0.04 0.04 0.04",
+    thumbnailRotation: "0 180 0",
   },
 ];
