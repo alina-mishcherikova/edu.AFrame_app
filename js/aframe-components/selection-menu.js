@@ -20,6 +20,7 @@ AFRAME.registerComponent("selection-menu", {
 
     // Build menu when scene's hit-test component is ready
     this.buildMenu = this.buildMenu.bind(this);
+    this._buildRetries = 0;
     if (this.el.sceneEl.hasLoaded) this.buildMenu();
     else this.el.sceneEl.addEventListener("loaded", this.buildMenu);
   },
@@ -52,6 +53,16 @@ AFRAME.registerComponent("selection-menu", {
 
   buildMenu() {
     const hitComp = this.el.sceneEl.components["ar-hit-test"];
+    // If the hit-test component isn't registered yet, retry a few times.
+    if (!hitComp) {
+      if (this._buildRetries < 20) {
+        this._buildRetries++;
+        setTimeout(this.buildMenu, 100);
+        return;
+      }
+      // give up gracefully after retries
+      return;
+    }
     const paintings = (hitComp && hitComp.paintingsData) || [];
     const sculptures = (hitComp && hitComp.sculpturesData) || [];
 
