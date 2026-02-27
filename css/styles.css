@@ -202,6 +202,16 @@ a {
   padding: 0.625rem 2rem;
   border-radius: 0.75rem;
 }
+.btn--outline {
+  background: transparent;
+  border: 0.0625rem solid var(--border);
+  color: #374151;
+}
+.btn__container {
+  display: flex;
+  gap: 1.125rem;
+  justify-content: center;
+}
 
 /* Hero */
 .hero {
@@ -336,11 +346,12 @@ a {
 }
 
 .feature--row {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   max-width: 80rem;
   width: 100%;
+  padding: 1.5rem;
 }
 
 .feature--reverse {
@@ -353,8 +364,8 @@ a {
   flex-direction: column;
   justify-content: center;
   gap: 0.5rem;
-  width: 100%;
-  text-align: left;
+  width: 50%;
+  text-align: center;
 }
 
 .feature__text h3 {
@@ -363,9 +374,8 @@ a {
   letter-spacing: -0.01em;
 }
 .feature__media {
-  padding: 1.125rem;
-  display: grid;
-  place-items: center;
+  padding: 0rem 1.125rem;
+  display: flex;
   width: 100%;
 }
 
@@ -373,7 +383,7 @@ a {
   padding: 1.125rem;
   display: grid;
   place-items: center;
-  width: 35rem;
+  width: 50%;
   height: 20rem;
   object-fit: cover;
   border-radius: 2rem;
@@ -381,8 +391,9 @@ a {
 .try__gallery {
   display: flex;
   gap: 1.125rem;
-  width: fit-content;
+  width: 100%;
   height: 20rem;
+  justify-content: center;
 }
 .try__gallery img {
   width: 15rem;
