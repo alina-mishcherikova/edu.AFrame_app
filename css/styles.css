@@ -225,7 +225,7 @@ a {
 .hero h1 {
   margin: 0 auto 0.625rem;
   max-width: 47.5rem;
-  font-size: clamp(1.75rem, 4.2vw, 2.75rem);
+  font-size: 3rem;
   letter-spacing: -0.02em;
   line-height: 1.05;
 }
@@ -321,20 +321,20 @@ a {
 
 .section h2 {
   margin: 0 0 0.5rem;
-  font-size: 1.375rem;
+  font-size: 2rem;
   letter-spacing: -0.02em;
 }
 
 .muted {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 1rem;
   line-height: 1.7;
 }
 
 .features {
   display: grid;
-  gap: 1.125rem;
+  gap: 2rem;
 }
 
 .feature {
@@ -370,7 +370,7 @@ a {
 
 .feature__text h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.5rem;
   letter-spacing: -0.01em;
 }
 .feature__media {
